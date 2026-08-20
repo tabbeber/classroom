@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="nn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i18n="appTitle">Klasseromplassering</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <h1 data-i18n="appTitle">Klasseromplassering</h1>
+  <div class="class-picker">
+    <select id="classSelect"></select>
+  </div>
+  <div class="spacer"></div>
+  <div class="lang-switch">
+    <button data-lang="nn">NN</button>
+    <button data-lang="nb">NB</button>
+    <button data-lang="en">EN</button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="class"><span data-i18n="tabClass">Klasse</span></button>
+  <button class="tab-btn" data-tab="room"><span data-i18n="tabRoom">Klasserom</span></button>
+  <button class="tab-btn" data-tab="seating"><span data-i18n="tabSeating">Plassering</span></button>
+  <button class="tab-btn" data-tab="settings"><span data-i18n="tabSettings">Innstillingar</span></button>
+</nav>
+
+<main class="tabpanel">
+
+  <!-- ===================== KLASSE ===================== -->
+  <section id="tab-class" class="tabview active">
+    <div class="panel">
+      <h2 data-i18n="classesHeading">Klassar</h2>
+      <div id="classList" class="class-list"></div>
+      <div class="toolbar" style="margin-top:.6rem">
+        <button id="btnNewClass" class="primary" data-i18n="newClass">Ny klasse</button>
+        <button id="btnRenameClass" data-i18n="renameClass">Endre namn</button>
+        <button id="btnDuplicateClass" data-i18n="duplicateClass">Kopier</button>
+        <button id="btnDeleteClass" class="danger" data-i18n="deleteClass">Slett</button>
+        <button id="btnSetDefault" data-i18n="setDefault">Set som standard</button>
+        <button id="btnExportClass" data-i18n="exportClass">Last ned fil</button>
+        <button id="btnImportClass" data-i18n="importClass">Last opp fil</button>
+        <input type="file" id="importClassFile" accept="application/json" hidden>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2 data-i18n="studentsHeading">Elevar</h2>
+      <p class="hint" data-i18n="studentsHelp">Éin elev per linje.</p>
+      <textarea id="studentsText" rows="8" style="width:100%"></textarea>
+      <div class="toolbar" style="margin-top:.5rem">
+        <button id="btnSaveStudents" class="primary" data-i18n="saveStudents">Lagre elevliste</button>
+        <button id="btnImportStudents" data-i18n="importFile">Importer frå fil...</button>
+        <input type="file" id="importStudentsFile" accept=".txt" hidden>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2 data-i18n="gendersHeading">Kjønn</h2>
+      <div id="genderList"></div>
+    </div>
+
+    <div class="panel">
+      <h2 data-i18n="blacklistHeading">Svarteliste</h2>
+      <p class="hint" data-i18n="blacklistHelp">Elevpar som ikkje bør sitje saman.</p>
+      <div class="row">
+        <select id="blPickA"></select>
+        <span data-i18n="blacklistWith">skal ikkje sitje med</span>
+        <select id="blPickB"></select>
+        <button id="btnAddPair" data-i18n="addPair">Legg til par</button>
+      </div>
+      <div id="blacklistList" style="margin-top:.5rem"></div>
+    </div>
+  </section>
+
+  <!-- ===================== KLASSEROM ===================== -->
+  <section id="tab-room" class="tabview">
+    <div class="toolbar">
+      <button id="btnAddGroup" class="primary" data-i18n="roomToolbarAdd">+ Bordgruppe</button>
+      <button id="btnQuickGrid" data-i18n="roomToolbarGrid">Lag rutenett automatisk...</button>
+      <button id="btnFlipRoom" class="toggle" data-i18n="roomToolbarFlip">Snu visning</button>
+      <button id="btnBulkZones" data-i18n="bulkZonesBtn">Rediger soner (valde)</button>
+      <span class="spacer"></span>
+      <span data-i18n="zoomLabel">Skala</span>
+      <button id="zoomOutRoom">-</button>
+      <span id="zoomLabelRoom">100%</span>
+      <button id="zoomInRoom">+</button>
+      <button id="zoomResetRoom" data-i18n="zoomReset">Tilbakestill</button>
+    </div>
+    <p class="hint" id="roomHint" data-i18n="roomHint"></p>
+    <div class="room-scroll" id="roomScrollA">
+      <div class="room-canvas" id="roomCanvasA"></div>
+    </div>
+  </section>
+
+  <!-- ===================== PLASSERING ===================== -->
+  <section id="tab-seating" class="tabview">
+    <div class="toolbar">
+      <button id="btnRandom" class="primary" data-i18n="seatingRandom">Tilfeldig plassering</button>
+      <button id="btnClearArrangement" data-i18n="seatingClear">Tøm plassering</button>
+      <button id="btnSaveHistory" data-i18n="seatingSave">Lagre plassering til historikk</button>
+      <span data-i18n="genderWeight">Kjønnsvekting</span>
+      <select id="genderModeSelect"></select>
+      <span class="spacer"></span>
+      <span data-i18n="search">Søk elev:</span>
+      <input type="text" id="poolSearch">
+    </div>
+    <div class="seating-layout">
+      <div class="pool-panel">
+        <h3 data-i18n="poolHeading">Elevar</h3>
+        <p class="hint" data-i18n="poolHelp"></p>
+        <div class="pool-list" id="poolList"></div>
+      </div>
+      <div class="room-wrap">
+        <div class="toolbar">
+          <span data-i18n="zoomLabel">Skala</span>
+          <button id="zoomOutSeat">-</button>
+          <span id="zoomLabelSeat">100%</span>
+          <button id="zoomInSeat">+</button>
+          <button id="zoomResetSeat" data-i18n="zoomReset">Tilbakestill</button>
+          <span class="spacer"></span>
+          <button id="btnFullHistory" data-i18n="fullHistory">Full historikk</button>
+          <button id="btnExportImage" data-i18n="exportImage">Last ned bilete (PNG)</button>
+          <button id="btnExportText" data-i18n="exportText">Last ned tekst</button>
+        </div>
+        <div class="room-scroll" id="roomScrollB">
+          <div class="room-canvas" id="roomCanvasB"></div>
+        </div>
+      </div>
+      <div class="info-panel panel" id="infoPanel"></div>
+    </div>
+  </section>
+
+  <!-- ===================== INNSTILLINGAR ===================== -->
+  <section id="tab-settings" class="tabview">
+    <div class="panel">
+      <h2 data-i18n="settingsAppearance">Utsjånad</h2>
+      <div class="settings-grid">
+        <label data-i18n="settingsLang">Språk</label>
+        <div class="lang-switch" id="langSwitchSettings">
+          <button data-lang="nn">Nynorsk</button>
+          <button data-lang="nb">Bokmål</button>
+          <button data-lang="en">English</button>
+        </div>
+
+        <label data-i18n="settingsAccent">Fargetema</label>
+        <div class="row">
+          <div class="swatches" id="accentSwatches"></div>
+          <input type="color" id="accentCustom">
+        </div>
+
+        <label data-i18n="settingsRadius">Avrunding</label>
+        <input type="range" id="radiusRange" min="0" max="24" step="1">
+
+        <label data-i18n="settingsBg">Bakgrunnsbilete</label>
+        <div class="row">
+          <div class="bg-preview" id="bgPreview"></div>
+          <button id="btnUploadBg" data-i18n="uploadBg">Last opp bilete...</button>
+          <button id="btnRemoveBg" data-i18n="removeBg">Fjern bilete</button>
+          <input type="file" id="bgFile" accept="image/*" hidden>
+        </div>
+
+        <label data-i18n="settingsBlur">Uskarpheit på pultar</label>
+        <input type="range" id="blurRange" min="0" max="20" step="1">
+
+        <label data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
+        <input type="range" id="opacityRange" min="0.2" max="1" step="0.05">
+
+        <label data-i18n="settingsUiScale">Storleik på grensesnitt</label>
+        <input type="range" id="uiScaleRange" min="0.8" max="1.3" step="0.05">
+
+        <label data-i18n="settingsFontScale">Tekststorleik</label>
+        <input type="range" id="fontScaleRange" min="0.8" max="1.4" step="0.05">
+      </div>
+      <div class="toolbar" style="margin-top:1rem">
+        <button id="btnResetSettings" data-i18n="settingsReset">Tilbakestill innstillingar</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="status" id="statusBar">-</footer>
+
+<div id="modalRoot"></div>
+
+<script src="core.js"></script>
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
