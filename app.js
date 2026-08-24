@@ -195,6 +195,10 @@ function startGhost(text) {
 function moveGhost(x, y) { if (ghostEl) { ghostEl.style.left = (x + 14) + 'px'; ghostEl.style.top = (y + 10) + 'px'; } }
 function destroyGhost() { if (ghostEl) { ghostEl.remove(); ghostEl = null; } }
 
+const LONG_PRESS_MS = 500;
+function clearLongPressTimer(drag) {
+  if (drag && drag.longPressTimer) { clearTimeout(drag.longPressTimer); drag.longPressTimer = null; }
+}
 function attachSeatEvents(el, sid, mode) {
   el.addEventListener('pointerdown', e => onSeatPointerDown(e, sid, mode));
   el.addEventListener('contextmenu', e => { e.preventDefault(); openSeatContextMenu(e, sid); });
@@ -204,20 +208,26 @@ function onSeatPointerDown(e, sid, mode) {
   if (e.ctrlKey || e.metaKey) { toggleMultiSelect(sid); return; }
   e.preventDefault();
   const el = e.currentTarget, room = App.room, cls = App.data;
+  let drag;
   if (mode === 'layout') {
     const gid = groupOf(room, sid); if (!gid) return;
     const g = room.groups[gid];
-    App.drag = { kind: 'group', gid, sid, startX: e.clientX, startY: e.clientY, origX: g.x, origY: g.y, dragging: false, zoom: App.zoomRoom };
+    drag = { kind: 'group', gid, sid, startX: e.clientX, startY: e.clientY, origX: g.x, origY: g.y, dragging: false, zoom: App.zoomRoom };
   } else {
-    App.drag = { kind: 'seat', sid, startX: e.clientX, startY: e.clientY, dragging: false, locked: !!cls.locked[sid] };
+    drag = { kind: 'seat', sid, startX: e.clientX, startY: e.clientY, dragging: false, locked: !!cls.locked[sid] };
   }
+  // Halde inne (touch eller mus) markerer plassen for fleire-val, same som Ctrl+klikk.
+  drag.longPressTriggered = false;
+  drag.longPressTimer = setTimeout(() => { drag.longPressTriggered = true; toggleMultiSelect(sid); }, LONG_PRESS_MS);
+  App.drag = drag;
   el.setPointerCapture(e.pointerId);
   el.addEventListener('pointermove', onSeatPointerMove);
   el.addEventListener('pointerup', onSeatPointerUp);
 }
 function onSeatPointerMove(e) {
-  const drag = App.drag; if (!drag) return;
+  const drag = App.drag; if (!drag || drag.longPressTriggered) return;
   const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+  if (!drag.dragging && (Math.abs(dx) >= DRAG_T || Math.abs(dy) >= DRAG_T)) clearLongPressTimer(drag);
   if (drag.kind === 'group') {
     if (!drag.dragging) { if (Math.abs(dx) < DRAG_T && Math.abs(dy) < DRAG_T) return; drag.dragging = true; }
     const sign = App.room.view_flipped ? -1 : 1;
@@ -240,19 +250,30 @@ function onSeatPointerUp(e) {
   el.removeEventListener('pointermove', onSeatPointerMove);
   el.removeEventListener('pointerup', onSeatPointerUp);
   const drag = App.drag; App.drag = null; if (!drag) return;
+  clearLongPressTimer(drag);
+  if (drag.longPressTriggered) return; // halde-inne har alt gjort jobben
 
   if (drag.kind === 'group') {
     if (drag.dragging) { saveCurrentRoom(); renderAllRoomViews(); }
+    else if (App.multiSelected.size > 0) { toggleMultiSelect(drag.sid); }
     else { App.selectedSeat = drag.sid; renderAllRoomViews(); }
     return;
   }
   destroyGhost();
-  if (drag.locked) { App.selectedSeat = drag.sid; renderInfoPanel(); renderAllRoomViews(); return; }
+  if (drag.locked) {
+    if (App.multiSelected.size > 0) toggleMultiSelect(drag.sid);
+    else { App.selectedSeat = drag.sid; renderInfoPanel(); renderAllRoomViews(); }
+    return;
+  }
   if (drag.dragging) {
     const target = document.elementFromPoint(e.clientX, e.clientY);
     const seatEl = target && target.closest('.seat');
     const poolEl = target && target.closest('.pool-list');
     handleSeatDrop(drag.sid, seatEl ? seatEl.dataset.sid : null, !!poolEl);
+  } else if (App.multiSelected.size > 0) {
+    // Når minst éin plass alt er markert, held vi fram i "marker fleire"-modus:
+    // eit vanleg trykk/klikk legg til/fjernar denne plassen i utvalet.
+    toggleMultiSelect(drag.sid);
   } else {
     handleSeatClick(drag.sid);
   }
@@ -366,6 +387,9 @@ function openSeatContextMenu(e, sid) {
   const gid = groupOf(room, sid);
   if (gid) {
     items.push([t('selectGroup'), () => { App.multiSelected = new Set(room.groups[gid].seats); renderAllRoomViews(); }]);
+    if (room.groups[gid].seats.length > 1) {
+      items.push([t('splitThisSeat'), () => { splitSeatsOut(room, [sid]); saveCurrentRoom(); renderAllRoomViews(); }]);
+    }
     items.push([t('editGroup'), () => openEditGroupModal(gid)]);
     items.push([t('removeGroupBtn'), () => { if (confirm(t('confirmRemoveGroup'))) { removeGroup(room, cls, gid); saveCurrentRoom(); saveCurrentClass(); renderAllRoomViews(); renderPool(); } }]);
   }
@@ -450,7 +474,9 @@ function openAddGroupModal() {
   modal.querySelector('#mgOk').onclick = () => {
     const n = parseInt(modal.querySelector('#mgSeats').value) || 1, cols = parseInt(modal.querySelector('#mgCols').value) || 1;
     const count = Object.keys(App.room.groups).length;
-    const x = 20 + (count * 24) % 400, y = 20 + Math.floor((count * 24) / 400) * 140;
+    const { w: seatW, h: seatH } = computeSeatSize(App.data.students);
+    const perRow = 4, stepX = seatW * 2 + GROUP_GAP, stepY = seatH * 2 + GROUP_GAP;
+    const x = 20 + (count % perRow) * stepX, y = 20 + Math.floor(count / perRow) * stepY;
     addGroup(App.room, x, y, n, cols);
     saveCurrentRoom(); closeModal(); renderAllRoomViews();
   };
@@ -478,28 +504,50 @@ function openQuickGridModal() {
     <label style="display:block"><input type="radio" name="qgStyle" value="enkelt"> ${t('gridSingle')}</label>
     <label style="display:block"><input type="radio" name="qgStyle" value="par" checked> ${t('gridPair')}</label>
     <label style="display:block"><input type="radio" name="qgStyle" value="firar"> ${t('gridQuad')}</label>
+    <button id="qgFitStudents" style="margin-top:.4rem">${t('gridFitStudents', { n: App.data.students.length })}</button>
+    <label style="display:block;margin-top:.4rem"><input type="checkbox" id="qgExactFit"> ${t('gridExactFit')}</label>
     <p><b>${t('gridWindow')}</b></p>
     <label style="display:block"><input type="radio" name="qgWin" value="ingen" checked> ${t('winNone')}</label>
     <label style="display:block"><input type="radio" name="qgWin" value="venstre"> ${t('winLeft')}</label>
     <label style="display:block"><input type="radio" name="qgWin" value="hoyre"> ${t('winRight')}</label>
     <label style="display:block"><input type="radio" name="qgWin" value="begge"> ${t('winBoth')}</label>
     <div class="actions"><button id="qgCancel">${t('cancel')}</button><button id="qgOk" class="primary">${t('confirm')}</button></div>`);
+  modal.querySelector('#qgFitStudents').onclick = () => {
+    const style = modal.querySelector('input[name=qgStyle]:checked').value;
+    const seatsPerTable = { enkelt: 1, par: 2, firar: 4 }[style];
+    const n = Math.max(1, App.data.students.length);
+    const tables = Math.max(1, Math.ceil(n / seatsPerTable));
+    const cols = Math.max(1, Math.ceil(Math.sqrt(tables)));
+    const rows = Math.max(1, Math.ceil(tables / cols));
+    modal.querySelector('#qgRows').value = rows;
+    modal.querySelector('#qgCols').value = cols;
+    modal.querySelector('#qgExactFit').checked = true;
+  };
   modal.querySelector('#qgCancel').onclick = closeModal;
   modal.querySelector('#qgOk').onclick = () => {
     const room = App.data, r = App.room;
     if (Object.keys(r.groups).length && !confirm(t('confirmOverwriteGrid'))) return;
     const rows = parseInt(modal.querySelector('#qgRows').value) || 1, cols = parseInt(modal.querySelector('#qgCols').value) || 1;
     const style = modal.querySelector('input[name=qgStyle]:checked').value, win = modal.querySelector('input[name=qgWin]:checked').value;
+    const exactFit = modal.querySelector('#qgExactFit').checked;
     const [nSeats, colsInGroup] = { enkelt: [1, 1], par: [2, 2], firar: [4, 2] }[style];
     const { w: seatW, h: seatH } = computeSeatSize(App.data.students);
     const tableRows = Math.ceil(nSeats / colsInGroup);
     const tableW = colsInGroup * (seatW + SEAT_GAP) - SEAT_GAP, tableH = tableRows * (seatH + SEAT_GAP) - SEAT_GAP;
+    const maxTables = exactFit ? Math.max(1, Math.ceil(App.data.students.length / nSeats)) : rows * cols;
     r.groups = {};
+    const placed = [];
+    outer:
     for (let tr = 0; tr < rows; tr++) for (let tc = 0; tc < cols; tc++) {
+      if (placed.length >= maxTables) break outer;
       const gid = addGroup(r, 20 + tc * (tableW + GROUP_GAP), 20 + tr * (tableH + GROUP_GAP), nSeats, colsInGroup);
+      placed.push({ gid, tr, tc });
+    }
+    const lastRow = Math.max(...placed.map(p => p.tr));
+    for (const { gid, tr, tc } of placed) {
       const zones = [];
       if (tr === 0) zones.push('framme');
-      if (tr === rows - 1 && rows > 1) zones.push('bak');
+      if (tr === lastRow && lastRow > 0) zones.push('bak');
       if ((win === 'venstre' || win === 'begge') && tc === 0) zones.push('vindauge');
       if ((win === 'hoyre' || win === 'begge') && tc === cols - 1 && !zones.includes('vindauge')) zones.push('vindauge');
       if (zones.length) for (const sid of r.groups[gid].seats) r.seat_zones[sid] = zones;
@@ -778,6 +826,9 @@ function loadRoomForCurrentClass() {
   if (!room) {
     roomId = Store.createRoom(t('newRoom'), { autoPopulateFor: App.data.students.length });
     App.data.room_id = roomId;
+    // Romtilvisinga var ugyldig (sletta/manglar) - gamal plassering/lås/historikk
+    // høyrer ikkje til det nye, tomme romet, så vi startar reint.
+    App.data.arrangement = {}; App.data.locked = {}; App.data.sessions = [];
     saveCurrentClass();
     room = Store.loadRoom(roomId);
   }
@@ -794,6 +845,8 @@ function switchClass(id) {
 function switchRoom(id) {
   const room = Store.loadRoom(id);
   if (!room) return;
+  archiveCurrentRoomState(App.data);
+  restoreRoomState(App.data, id);
   App.roomId = id; App.room = room;
   App.data.room_id = id;
   saveCurrentClass();
@@ -1005,9 +1058,15 @@ function wireEvents() {
   document.getElementById('btnDeleteRoom').onclick = () => {
     const cur = Store.listRooms().find(r => r.id === App.roomId); if (!cur) return;
     if (!confirm(t('deleteRoomConfirm', { name: cur.name }))) return;
-    const inUse = Store.roomsInUseBy(App.roomId).filter(c => c.id !== App.classId);
-    Store.deleteRoom(App.roomId);
+    const deletedId = App.roomId;
+    const inUse = Store.roomsInUseBy(deletedId).filter(c => c.id !== App.classId);
+    Store.deleteRoom(deletedId);
     for (const c of inUse) { const cd = Store.loadClass(c.id); if (cd) { cd.room_id = null; Store.saveClass(c.id, cd); } }
+    for (const c of Store.listClasses()) {
+      const cd = Store.loadClass(c.id);
+      if (cd && cd.room_states && cd.room_states[deletedId]) { delete cd.room_states[deletedId]; Store.saveClass(c.id, cd); }
+    }
+    delete App.data.room_states[deletedId];
     loadRoomForCurrentClass(); syncFlipButton(); renderRoomTab(); renderAllRoomViews(); renderPool();
   };
   document.getElementById('btnAddGroup').onclick = openAddGroupModal;

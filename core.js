@@ -20,7 +20,32 @@ function newClassData() {
   return {
     version: CLASS_VERSION, room_id: null, students: [], locked: {}, arrangement: {},
     sessions: [], blacklist: [], genders: {}, gender_weight_mode: 'ingen',
+    room_states: {}, // andre (ikkje-aktive) rom denne klassen har brukt: romId -> {arrangement, locked, sessions}
   };
+}
+// Lagra tilstanden (plassering/lås/historikk) for det NO aktive romet unna,
+// slik at han ikkje går tapt om klassen byter til eit anna rom.
+function archiveCurrentRoomState(cls) {
+  if (!cls.room_id) return;
+  cls.room_states = cls.room_states || {};
+  cls.room_states[cls.room_id] = {
+    arrangement: { ...cls.arrangement },
+    locked: { ...cls.locked },
+    sessions: JSON.parse(JSON.stringify(cls.sessions)),
+  };
+}
+// Hent fram att tidlegare lagra tilstand for eit rom (eller tom tilstand
+// om klassen ikkje har brukt romet før).
+function restoreRoomState(cls, roomId) {
+  cls.room_states = cls.room_states || {};
+  const saved = cls.room_states[roomId];
+  if (saved) {
+    cls.arrangement = { ...saved.arrangement };
+    cls.locked = { ...saved.locked };
+    cls.sessions = JSON.parse(JSON.stringify(saved.sessions));
+  } else {
+    cls.arrangement = {}; cls.locked = {}; cls.sessions = [];
+  }
 }
 
 // -- Rom-hjelparar (bordgrupper/plassar) --
@@ -76,23 +101,53 @@ function resizeGroup(r, cls, gid, nSeats, cols) {
   }
   g.cols = Math.max(1, cols);
 }
-// Slå saman fleire grupper til éi (posisjon frå den fyrste, seter samla).
+// Slå saman fleire grupper til éi. Ny rad/kolonne-oppsett vert utleia frå
+// kor pultane faktisk står i høve kvarandre: pultar over kvarandre gir
+// fleire rader, pultar ved sida av kvarandre gir fleire kolonnar.
 function mergeGroups(r, cls, gids) {
   if (gids.length < 2) return gids[0] || null;
-  const first = r.groups[gids[0]];
-  if (!first) return null;
-  const mergedSeats = [];
-  for (const gid of gids) {
-    const g = r.groups[gid];
-    if (g) mergedSeats.push(...g.seats);
+  const groups = gids.map(gid => r.groups[gid]).filter(Boolean);
+  if (groups.length < 2) return null;
+
+  const seatPos = [];
+  for (const g of groups) {
+    const cols = Math.max(1, g.cols || 1);
+    g.seats.forEach((sid, i) => {
+      const row = Math.floor(i / cols), col = i % cols;
+      seatPos.push({ sid, x: g.x + col * (SEAT_W + SEAT_GAP), y: g.y + row * (SEAT_H + SEAT_GAP) });
+    });
   }
+
+  // Grupper x- og y-verdiar til "kolonnar"/"rader" med romsleg toleranse.
+  const clusterValues = (vals, tol) => {
+    const sorted = [...new Set(vals)].sort((a, b) => a - b);
+    const clusters = [];
+    for (const v of sorted) {
+      const last = clusters[clusters.length - 1];
+      if (last && v - last.rep <= tol) { last.vals.push(v); last.rep = v; }
+      else clusters.push({ rep: v, vals: [v] });
+    }
+    return clusters.map(c => c.vals.reduce((a, b) => a + b, 0) / c.vals.length);
+  };
+  const xClusters = clusterValues(seatPos.map(p => p.x), SEAT_W * 0.6);
+  const yClusters = clusterValues(seatPos.map(p => p.y), SEAT_H * 0.6);
+  const nearestIdx = (v, clusters) => clusters.reduce(
+    (best, c, i) => Math.abs(v - c) < Math.abs(v - clusters[best]) ? i : best, 0);
+
+  const cols = xClusters.length;
+  const grid = {};
+  for (const p of seatPos) grid[nearestIdx(p.y, yClusters) * cols + nearestIdx(p.x, xClusters)] = p.sid;
+  const orderedSeats = [];
+  for (let i = 0; i < yClusters.length * cols; i++) if (grid[i]) orderedSeats.push(grid[i]);
+  for (const p of seatPos) if (!orderedSeats.includes(p.sid)) orderedSeats.push(p.sid); // sikkerheitsnett
+
+  const minX = Math.min(...seatPos.map(p => p.x)), minY = Math.min(...seatPos.map(p => p.y));
   const newGid = nextGroupId(r);
-  const cols = first.cols || 2;
-  r.groups[newGid] = { x: first.x, y: first.y, cols, seats: mergedSeats };
+  r.groups[newGid] = { x: minX, y: minY, cols, seats: orderedSeats };
   for (const gid of gids) delete r.groups[gid];
   return newGid;
 }
-// Bryt valde plassar ut av gruppa si til ei ny, eiga gruppe.
+// Bryt éin eller fleire valde plassar ut av gruppa si til ei ny, eiga gruppe.
 function splitSeatsOut(r, sids) {
   const bygroup = {};
   for (const sid of sids) {
@@ -254,6 +309,19 @@ function scoreArrangement(arr, r, pairHist, zoneHist, blSet, genders, genderMode
   return score;
 }
 
+// Rekkjefølgje på plassar frå nærast tavla til lengst unna (brukt til å
+// fylle framme først når det er fleire plassar enn elevar).
+function seatFrontOrder(r) {
+  const raw = {};
+  for (const g of Object.values(r.groups)) {
+    const cols = Math.max(1, g.cols || 1);
+    g.seats.forEach((sid, i) => { raw[sid] = g.y + Math.floor(i / cols) * (SEAT_H + SEAT_GAP); });
+  }
+  const ids = Object.keys(raw);
+  ids.sort((a, b) => r.view_flipped ? (raw[b] - raw[a]) : (raw[a] - raw[b]));
+  return ids;
+}
+
 function generateArrangement(r, cls, opts = {}) {
   const restarts = opts.restarts ?? 300, polish = opts.polish ?? 400, keepLocked = opts.keepLocked ?? true;
   const genders = opts.genders ?? cls.genders, genderMode = opts.genderMode ?? cls.gender_weight_mode;
@@ -264,10 +332,17 @@ function generateArrangement(r, cls, opts = {}) {
     if (isL && cls.arrangement[sid]) lockedArr[sid] = cls.arrangement[sid];
 
   const allSeats = allSeatIds(r);
-  const freeSeats = allSeats.filter(s => !(s in lockedArr));
+  let freeSeats = allSeats.filter(s => !(s in lockedArr));
   const lockedStudents = new Set(Object.values(lockedArr));
   let freeStudents = cls.students.filter(s => !lockedStudents.has(s));
-  if (freeStudents.length > freeSeats.length) freeStudents = freeStudents.slice(0, freeSeats.length);
+  if (freeStudents.length > freeSeats.length) {
+    freeStudents = freeStudents.slice(0, freeSeats.length);
+  } else if (freeStudents.length < freeSeats.length) {
+    // Fleire plassar enn elevar: bruk berre dei fremste (næraste tavla),
+    // slik at klassen sit så langt fram som mogleg og resten står tomme.
+    const freeSet = new Set(freeSeats);
+    freeSeats = seatFrontOrder(r).filter(s => freeSet.has(s)).slice(0, freeStudents.length);
+  }
 
   let best = null, bestScore = null;
   for (let i = 0; i < Math.max(1, restarts); i++) {
@@ -344,6 +419,7 @@ function normalizeClassData(raw) {
   cls.blacklist = raw.blacklist || [];
   cls.genders = raw.genders || {};
   cls.gender_weight_mode = raw.gender_weight_mode || 'ingen';
+  cls.room_states = raw.room_states || {};
 
   const version = raw.version || 1;
   if (version >= CLASS_VERSION) {

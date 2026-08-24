@@ -45,6 +45,12 @@ header.topbar h1 { font-size: 1.05rem; margin: 0; font-weight: 600; flex: 0 0 au
   background: rgba(255,255,255,.12); color: white; border: 1px solid rgba(255,255,255,.25);
 }
 .lang-switch button.active { background: var(--accent); border-color: var(--accent); }
+/* Språkbyte inni Innstillingar-panelet ligg på panel-bakgrunn, ikkje header -
+   må difor følgje temaet i staden for å alltid vere kvit tekst. */
+#langSwitchSettings button {
+  background: var(--panel-bg); color: var(--ink); border: 1px solid var(--panel-border);
+}
+#langSwitchSettings button.active { background: var(--accent); border-color: var(--accent); color: white; }
 
 /* -- Faner -- */
 nav.tabs { display: flex; gap: .3rem; padding: .5rem 1rem 0; background: transparent; justify-content: center; }
@@ -167,7 +173,7 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 .seat {
   position: absolute; border-radius: var(--radius); border: 2px solid var(--panel-border);
   background: rgba(var(--glass-rgb), var(--opacity)); backdrop-filter: blur(var(--blur));
-  display: flex; flex-direction: column; cursor: pointer; user-select: none;
+  display: flex; flex-direction: column; cursor: pointer; user-select: none; touch-action: none;
   box-shadow: 0 1px 4px rgba(0,0,0,.15);
 }
 .seat .top-row { display: flex; align-items: center; padding: 3px 4px 0; gap: 2px; min-height: 16px; }
