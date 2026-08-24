@@ -1,5 +1,6 @@
 # Klasseromplassering (nettversjon)
 
+https://klasserom.allbrass.no/
 Statisk nettside – ingen server, ingen installasjon. Alt lagrar seg i
 nettlesaren (localStorage) på eininga du brukar.
 
