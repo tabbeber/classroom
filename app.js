@@ -1,25 +1,31 @@
 // ===================================================================
 // app.js - appstyring: tilstand, teikning av rom, drag, dialogar
+// Rom (bordgrupper) og klasse (elevar/plassering) er skilde datasett;
+// App.room + App.data held kvar sitt, kopla via App.data.room_id.
 // ===================================================================
 
-const MARGIN = 20, BOARD_H = 30, GROUP_GAP = 40, DRAG_T = 6;
+const MARGIN = 20, BOARD_H = 30, GROUP_GAP = 40, DRAG_T = 6, SNAP = 20;
 const ACCENT_PRESETS = ['#2563eb', '#16a34a', '#7c3aed', '#ea580c', '#db2777', '#475569'];
 
 const App = {
-  classId: null, data: null, settings: null,
+  classId: null, data: null,
+  roomId: null, room: null,
+  settings: null,
   zoomRoom: 1, zoomSeat: 1,
   selectedSeat: null, selectedStudent: null,
   multiSelected: new Set(), armedStudent: null,
   drag: null, ctxMenu: null,
 };
 
-// -- Tekstmåling og layout-utrekning (speglar Python-versjonen) --
+// -- Tekstmåling og layout-utrekning --
 let _measureCtx = null;
 function measureCtx() {
   if (!_measureCtx) _measureCtx = document.createElement('canvas').getContext('2d');
   return _measureCtx;
 }
 function computeSeatSize(students) {
+  const override = App.settings && App.settings.seatSizeOverride;
+  if (override) return { w: override, h: Math.round(override / (SEAT_W / SEAT_H)) };
   const ctx = measureCtx();
   ctx.font = "bold 10pt 'Segoe UI'";
   let w = SEAT_W;
@@ -29,9 +35,9 @@ function computeSeatSize(students) {
   }
   return { w, h: Math.round(w / (SEAT_W / SEAT_H)) };
 }
-function computeLayout(d, seatW, seatH) {
+function computeLayout(r, seatW, seatH) {
   const raw = {}; let maxX = 0, maxY = 0;
-  for (const g of Object.values(d.groups)) {
+  for (const g of Object.values(r.groups)) {
     const cols = Math.max(1, g.cols || 1);
     g.seats.forEach((sid, i) => {
       const row = Math.floor(i / cols), col = i % cols;
@@ -42,7 +48,7 @@ function computeLayout(d, seatW, seatH) {
   }
   const contentW = Math.max(maxX, 260), contentH = maxY;
   const positions = {}; let boardRect, totalH;
-  if (!d.view_flipped) {
+  if (!r.view_flipped) {
     const offY = MARGIN + BOARD_H + 14;
     for (const [sid, [x, y]] of Object.entries(raw)) positions[sid] = [x + MARGIN, y + offY];
     boardRect = [MARGIN, MARGIN, contentW]; totalH = contentH + offY + MARGIN;
@@ -53,10 +59,18 @@ function computeLayout(d, seatW, seatH) {
   }
   return { positions, boardRect, totalW: contentW + MARGIN * 2, totalH: Math.max(totalH, 160) };
 }
+function groupBounds(g, positions, seatW, seatH) {
+  const pts = g.seats.map(sid => positions[sid]).filter(Boolean);
+  if (!pts.length) return null;
+  const pad = 6;
+  const minX = Math.min(...pts.map(p => p[0])) - pad, minY = Math.min(...pts.map(p => p[1])) - pad;
+  const maxX = Math.max(...pts.map(p => p[0] + seatW)) + pad, maxY = Math.max(...pts.map(p => p[1] + seatH)) + pad;
+  return { minX, minY, w: maxX - minX, h: maxY - minY };
+}
 
 // -- Teikning av klasserom (delt av Klasserom- og Plasserings-fana) --
 function buildSeatEl(sid, mode, w, h, repeatWarn, blWarn) {
-  const d = App.data, student = d.arrangement[sid], locked = !!d.locked[sid], zones = zonesFor(d, sid);
+  const room = App.room, cls = App.data, student = cls.arrangement[sid], locked = !!cls.locked[sid], zones = zonesFor(room, sid);
   const el = document.createElement('div');
   el.className = 'seat' + (student ? '' : ' empty');
   if (locked) el.classList.add('locked');
@@ -89,13 +103,14 @@ function buildSeatEl(sid, mode, w, h, repeatWarn, blWarn) {
 
 const _seatElCache = { roomCanvasA: {}, roomCanvasB: {} };
 const _boardElCache = {};
+const _groupFrameCache = { roomCanvasA: {}, roomCanvasB: {} };
 
 function renderRoom(containerId, mode, zoom) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
   _seatElCache[containerId] = {};
-  const d = App.data, { w: seatW, h: seatH } = computeSeatSize(d.students);
-  const { positions, boardRect, totalW, totalH } = computeLayout(d, seatW, seatH);
+  const room = App.room, cls = App.data, { w: seatW, h: seatH } = computeSeatSize(cls.students);
+  const { positions, boardRect, totalW, totalH } = computeLayout(room, seatW, seatH);
   container.style.width = (totalW * zoom) + 'px'; container.style.height = (totalH * zoom) + 'px';
 
   const [bx, by, bw] = boardRect;
@@ -105,16 +120,25 @@ function renderRoom(containerId, mode, zoom) {
   container.appendChild(board);
   _boardElCache[containerId] = board;
 
-  if (!Object.keys(d.groups).length) {
+  if (!Object.keys(room.groups).length) {
     const hint = document.createElement('p'); hint.className = 'hint';
     hint.style.position = 'absolute'; hint.style.left = (bx * zoom) + 'px'; hint.style.top = (by * zoom + BOARD_H * zoom + 16) + 'px';
     hint.style.width = Math.max(bw, 260) + 'px'; hint.textContent = t('roomEmptyHint');
     container.appendChild(hint);
     return;
   }
-  const repeatWarn = mode === 'seating' ? repeatNeighbourSeats(d, d.arrangement) : {};
-  const blWarn = mode === 'seating' ? blacklistViolationSeats(d, d.arrangement) : {};
-  for (const g of Object.values(d.groups)) {
+  const repeatWarn = mode === 'seating' ? repeatNeighbourSeats(room, cls, cls.arrangement) : {};
+  const blWarn = mode === 'seating' ? blacklistViolationSeats(room, cls, cls.arrangement) : {};
+  _groupFrameCache[containerId] = {};
+  for (const [gid, g] of Object.entries(room.groups)) {
+    const b = groupBounds(g, positions, seatW, seatH);
+    if (b) {
+      const frame = document.createElement('div'); frame.className = 'group-frame';
+      frame.style.left = (b.minX * zoom) + 'px'; frame.style.top = (b.minY * zoom) + 'px';
+      frame.style.width = (b.w * zoom) + 'px'; frame.style.height = (b.h * zoom) + 'px';
+      container.appendChild(frame);
+      _groupFrameCache[containerId][gid] = frame;
+    }
     for (const sid of g.seats) {
       if (!positions[sid]) continue;
       const [px, py] = positions[sid];
@@ -127,8 +151,8 @@ function renderRoom(containerId, mode, zoom) {
   }
 }
 function repositionRoom(containerId, zoom) {
-  const d = App.data, { w: seatW, h: seatH } = computeSeatSize(d.students);
-  const { positions, boardRect, totalW, totalH } = computeLayout(d, seatW, seatH);
+  const room = App.room, cls = App.data, { w: seatW, h: seatH } = computeSeatSize(cls.students);
+  const { positions, boardRect, totalW, totalH } = computeLayout(room, seatW, seatH);
   const container = document.getElementById(containerId);
   container.style.width = (totalW * zoom) + 'px'; container.style.height = (totalH * zoom) + 'px';
   const board = _boardElCache[containerId];
@@ -144,10 +168,19 @@ function repositionRoom(containerId, zoom) {
     el.style.left = (px * zoom) + 'px'; el.style.top = (py * zoom) + 'px';
     el.style.width = (seatW * zoom) + 'px'; el.style.height = (seatH * zoom) + 'px';
   }
+  const gcache = _groupFrameCache[containerId] || {};
+  for (const [gid, g] of Object.entries(room.groups)) {
+    const b = groupBounds(g, positions, seatW, seatH), el = gcache[gid];
+    if (b && el) {
+      el.style.left = (b.minX * zoom) + 'px'; el.style.top = (b.minY * zoom) + 'px';
+      el.style.width = (b.w * zoom) + 'px'; el.style.height = (b.h * zoom) + 'px';
+    }
+  }
 }
 function renderAllRoomViews() {
   renderRoom('roomCanvasA', 'layout', App.zoomRoom);
   renderRoom('roomCanvasB', 'seating', App.zoomSeat);
+  document.getElementById('roomSeatCount').textContent = t('roomTotalSeats', { n: allSeatIds(App.room).length });
   updateStatusBar();
 }
 
@@ -170,13 +203,13 @@ function onSeatPointerDown(e, sid, mode) {
   if (e.button !== 0) return;
   if (e.ctrlKey || e.metaKey) { toggleMultiSelect(sid); return; }
   e.preventDefault();
-  const el = e.currentTarget, d = App.data;
+  const el = e.currentTarget, room = App.room, cls = App.data;
   if (mode === 'layout') {
-    const gid = groupOf(d, sid); if (!gid) return;
-    const g = d.groups[gid];
+    const gid = groupOf(room, sid); if (!gid) return;
+    const g = room.groups[gid];
     App.drag = { kind: 'group', gid, sid, startX: e.clientX, startY: e.clientY, origX: g.x, origY: g.y, dragging: false, zoom: App.zoomRoom };
   } else {
-    App.drag = { kind: 'seat', sid, startX: e.clientX, startY: e.clientY, dragging: false, locked: !!d.locked[sid] };
+    App.drag = { kind: 'seat', sid, startX: e.clientX, startY: e.clientY, dragging: false, locked: !!cls.locked[sid] };
   }
   el.setPointerCapture(e.pointerId);
   el.addEventListener('pointermove', onSeatPointerMove);
@@ -187,8 +220,9 @@ function onSeatPointerMove(e) {
   const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
   if (drag.kind === 'group') {
     if (!drag.dragging) { if (Math.abs(dx) < DRAG_T && Math.abs(dy) < DRAG_T) return; drag.dragging = true; }
-    const sign = App.data.view_flipped ? -1 : 1;
-    moveGroup(App.data, drag.gid, Math.max(0, drag.origX + dx / drag.zoom), Math.max(0, drag.origY + sign * (dy / drag.zoom)));
+    const sign = App.room.view_flipped ? -1 : 1;
+    const rawX = Math.max(0, drag.origX + dx / drag.zoom), rawY = Math.max(0, drag.origY + sign * (dy / drag.zoom));
+    moveGroup(App.room, drag.gid, Math.round(rawX / SNAP) * SNAP, Math.round(rawY / SNAP) * SNAP);
     repositionRoom('roomCanvasA', App.zoomRoom);
     return;
   }
@@ -208,7 +242,7 @@ function onSeatPointerUp(e) {
   const drag = App.drag; App.drag = null; if (!drag) return;
 
   if (drag.kind === 'group') {
-    if (drag.dragging) { saveCurrentClass(); renderAllRoomViews(); }
+    if (drag.dragging) { saveCurrentRoom(); renderAllRoomViews(); }
     else { App.selectedSeat = drag.sid; renderAllRoomViews(); }
     return;
   }
@@ -271,60 +305,69 @@ function handlePoolClick(name) {
   renderPool(); renderInfoPanel();
 }
 function wouldViolateBlacklist(student, targetSeat, excludeSid) {
-  const d = App.data, gid = groupOf(d, targetSeat); if (!gid) return [];
-  const blSet = blacklistSet(d); if (!blSet.size) return [];
+  const room = App.room, cls = App.data, gid = groupOf(room, targetSeat); if (!gid) return [];
+  const blSet = blacklistSet(cls); if (!blSet.size) return [];
   const hits = [];
-  for (const sib of d.groups[gid].seats) {
+  for (const sib of room.groups[gid].seats) {
     if (sib === targetSeat || sib === excludeSid) continue;
-    const other = d.arrangement[sib];
+    const other = cls.arrangement[sib];
     if (other && blSet.has([student, other].sort().join('||'))) hits.push(other);
   }
   return hits;
 }
 function placeStudent(student, targetSeat) {
-  const d = App.data;
-  if (d.locked[targetSeat]) { setStatus(t('lockSeat')); return; }
+  const cls = App.data;
+  if (cls.locked[targetSeat]) { setStatus(t('lockSeat')); return; }
   const hits = wouldViolateBlacklist(student, targetSeat);
   if (hits.length && !confirm(`${student} ${t('blacklistWith')} ${hits.join(', ')}. ${t('confirm')}?`)) return;
-  const old = studentSeat(d, student); if (old) delete d.arrangement[old];
-  d.arrangement[targetSeat] = student;
+  const old = studentSeat(cls, student); if (old) delete cls.arrangement[old];
+  cls.arrangement[targetSeat] = student;
   saveCurrentClass(); renderAllRoomViews(); renderPool(); renderInfoPanel();
 }
 function moveOrSwap(sourceSid, targetSeat) {
-  const d = App.data;
-  if (d.locked[targetSeat]) { setStatus(t('lockSeat')); return; }
-  const moving = d.arrangement[sourceSid];
+  const cls = App.data;
+  if (cls.locked[targetSeat]) { setStatus(t('lockSeat')); return; }
+  const moving = cls.arrangement[sourceSid];
   const hits = wouldViolateBlacklist(moving, targetSeat, sourceSid);
   if (hits.length && !confirm(`${moving} ${t('blacklistWith')} ${hits.join(', ')}. ${t('confirm')}?`)) return;
-  const other = d.arrangement[targetSeat];
-  if (other) d.arrangement[sourceSid] = other; else delete d.arrangement[sourceSid];
-  d.arrangement[targetSeat] = moving;
+  const other = cls.arrangement[targetSeat];
+  if (other) cls.arrangement[sourceSid] = other; else delete cls.arrangement[sourceSid];
+  cls.arrangement[targetSeat] = moving;
   saveCurrentClass(); renderAllRoomViews(); renderPool(); renderInfoPanel();
 }
 function handleSeatDrop(sourceSid, targetSid, inPool) {
-  const d = App.data, student = d.arrangement[sourceSid]; if (!student) return;
+  const cls = App.data, student = cls.arrangement[sourceSid]; if (!student) return;
   if (targetSid && targetSid !== sourceSid) moveOrSwap(sourceSid, targetSid);
-  else if (inPool) { delete d.arrangement[sourceSid]; saveCurrentClass(); renderAllRoomViews(); renderPool(); renderInfoPanel(); }
+  else if (inPool) { delete cls.arrangement[sourceSid]; saveCurrentClass(); renderAllRoomViews(); renderPool(); renderInfoPanel(); }
 }
 
 // -- Høgreklikk-meny --
 function closeContextMenu() { if (App.ctxMenu) { App.ctxMenu.remove(); App.ctxMenu = null; } }
+function onDocMouseDownCloseMenu(e) {
+  if (App.ctxMenu && App.ctxMenu.contains(e.target)) return;
+  document.removeEventListener('mousedown', onDocMouseDownCloseMenu);
+  closeContextMenu();
+}
 function openSeatContextMenu(e, sid) {
   closeContextMenu();
-  const d = App.data, menu = document.createElement('div');
+  const room = App.room, cls = App.data, menu = document.createElement('div');
   menu.className = 'panel';
   Object.assign(menu.style, { position: 'fixed', left: e.clientX + 'px', top: e.clientY + 'px', zIndex: 200, minWidth: '230px', padding: '.3rem' });
   const items = [];
-  if (App.multiSelected.size > 1 && App.multiSelected.has(sid)) items.push([t('editZonesBulk', { n: App.multiSelected.size }), openBulkZonesModal]);
-  const locked = !!d.locked[sid];
-  items.push([locked ? t('unlockSeat') : t('lockSeat'), () => { d.locked[sid] = !locked; saveCurrentClass(); renderAllRoomViews(); }]);
+  if (App.multiSelected.size > 1 && App.multiSelected.has(sid)) {
+    items.push([t('editZonesBulk', { n: App.multiSelected.size }), openBulkZonesModal]);
+    if (groupsRepresentedBy(App.multiSelected).length > 1) items.push([t('mergeGroups'), doMergeSelectedGroups]);
+    items.push([t('splitGroups'), doSplitSelectedSeats]);
+  }
+  const locked = !!cls.locked[sid];
+  items.push([locked ? t('unlockSeat') : t('lockSeat'), () => { cls.locked[sid] = !locked; saveCurrentClass(); renderAllRoomViews(); }]);
   items.push([t('editZones'), () => openEditZonesModal(sid)]);
-  if (d.arrangement[sid]) items.push([t('clearSeat'), () => { delete d.arrangement[sid]; saveCurrentClass(); renderAllRoomViews(); renderPool(); }]);
-  const gid = groupOf(d, sid);
+  if (cls.arrangement[sid]) items.push([t('clearSeat'), () => { delete cls.arrangement[sid]; saveCurrentClass(); renderAllRoomViews(); renderPool(); }]);
+  const gid = groupOf(room, sid);
   if (gid) {
-    items.push([t('selectGroup'), () => { App.multiSelected = new Set(d.groups[gid].seats); renderAllRoomViews(); }]);
+    items.push([t('selectGroup'), () => { App.multiSelected = new Set(room.groups[gid].seats); renderAllRoomViews(); }]);
     items.push([t('editGroup'), () => openEditGroupModal(gid)]);
-    items.push([t('removeGroupBtn'), () => { if (confirm(t('confirmRemoveGroup'))) { removeGroup(d, gid); saveCurrentClass(); renderAllRoomViews(); renderPool(); } }]);
+    items.push([t('removeGroupBtn'), () => { if (confirm(t('confirmRemoveGroup'))) { removeGroup(room, cls, gid); saveCurrentRoom(); saveCurrentClass(); renderAllRoomViews(); renderPool(); } }]);
   }
   for (const [label, fn] of items) {
     const b = document.createElement('button'); b.textContent = label;
@@ -334,7 +377,28 @@ function openSeatContextMenu(e, sid) {
     menu.appendChild(b);
   }
   document.body.appendChild(menu); App.ctxMenu = menu;
-  setTimeout(() => document.addEventListener('mousedown', closeContextMenu, { once: true }), 0);
+  setTimeout(() => document.addEventListener('mousedown', onDocMouseDownCloseMenu), 0);
+}
+
+// -- Slå saman / skil ut bordgrupper (multi-val) --
+function groupsRepresentedBy(sidSet) {
+  const gids = new Set();
+  for (const sid of sidSet) { const gid = groupOf(App.room, sid); if (gid) gids.add(gid); }
+  return [...gids];
+}
+function doMergeSelectedGroups() {
+  const gids = groupsRepresentedBy(App.multiSelected);
+  if (gids.length < 2) { alert(t('mergeNeedTwo')); return; }
+  mergeGroups(App.room, App.data, gids);
+  App.multiSelected = new Set();
+  saveCurrentRoom(); saveCurrentClass(); renderAllRoomViews();
+}
+function doSplitSelectedSeats() {
+  const sids = [...App.multiSelected];
+  if (!sids.length) { alert(t('splitNeedSelection')); return; }
+  splitSeatsOut(App.room, sids);
+  App.multiSelected = new Set();
+  saveCurrentRoom(); renderAllRoomViews();
 }
 
 // -- Modal-dialogar (generisk) --
@@ -350,21 +414,21 @@ function zoneCheckboxesHtml(current) {
   return ZONES.map(z => `<label style="display:block"><input type="checkbox" data-z="${z}" ${current.has(z) ? 'checked' : ''}> ${t('zone' + z[0].toUpperCase() + z.slice(1))}</label>`).join('');
 }
 function openEditZonesModal(sid) {
-  const d = App.data, current = new Set(zonesFor(d, sid));
+  const room = App.room, cls = App.data, current = new Set(zonesFor(room, sid));
   const modal = openModal(`
     <h2>${t('editZones')}</h2>${zoneCheckboxesHtml(current)}
-    <label style="display:block;margin-top:.5rem"><input type="checkbox" id="ezLock" ${d.locked[sid] ? 'checked' : ''}> ${t('lockSeat')}</label>
+    <label style="display:block;margin-top:.5rem"><input type="checkbox" id="ezLock" ${cls.locked[sid] ? 'checked' : ''}> ${t('lockSeat')}</label>
     <div class="actions"><button id="ezCancel">${t('cancel')}</button><button id="ezOk" class="primary">${t('save')}</button></div>`);
   modal.querySelector('#ezCancel').onclick = closeModal;
   modal.querySelector('#ezOk').onclick = () => {
     const zones = [...modal.querySelectorAll('input[data-z]')].filter(c => c.checked).map(c => c.dataset.z);
-    if (zones.length) d.seat_zones[sid] = zones; else delete d.seat_zones[sid];
-    d.locked[sid] = modal.querySelector('#ezLock').checked;
-    saveCurrentClass(); closeModal(); renderAllRoomViews();
+    if (zones.length) room.seat_zones[sid] = zones; else delete room.seat_zones[sid];
+    cls.locked[sid] = modal.querySelector('#ezLock').checked;
+    saveCurrentRoom(); saveCurrentClass(); closeModal(); renderAllRoomViews();
   };
 }
 function openBulkZonesModal() {
-  const sids = [...App.multiSelected].filter(s => groupOf(App.data, s));
+  const sids = [...App.multiSelected].filter(s => groupOf(App.room, s));
   if (!sids.length) { alert(t('roomHint')); return; }
   const modal = openModal(`
     <h2>${t('editZonesBulk', { n: sids.length })}</h2><p>${t('zonesForSeats')}</p>${zoneCheckboxesHtml(new Set())}
@@ -372,8 +436,8 @@ function openBulkZonesModal() {
   modal.querySelector('#bzCancel').onclick = closeModal;
   modal.querySelector('#bzOk').onclick = () => {
     const zones = [...modal.querySelectorAll('input[data-z]')].filter(c => c.checked).map(c => c.dataset.z);
-    for (const sid of sids) { if (zones.length) App.data.seat_zones[sid] = [...zones]; else delete App.data.seat_zones[sid]; }
-    saveCurrentClass(); closeModal(); App.multiSelected = new Set(); renderAllRoomViews();
+    for (const sid of sids) { if (zones.length) App.room.seat_zones[sid] = [...zones]; else delete App.room.seat_zones[sid]; }
+    saveCurrentRoom(); closeModal(); App.multiSelected = new Set(); renderAllRoomViews();
   };
 }
 function openAddGroupModal() {
@@ -385,24 +449,24 @@ function openAddGroupModal() {
   modal.querySelector('#mgCancel').onclick = closeModal;
   modal.querySelector('#mgOk').onclick = () => {
     const n = parseInt(modal.querySelector('#mgSeats').value) || 1, cols = parseInt(modal.querySelector('#mgCols').value) || 1;
-    const count = Object.keys(App.data.groups).length;
+    const count = Object.keys(App.room.groups).length;
     const x = 20 + (count * 24) % 400, y = 20 + Math.floor((count * 24) / 400) * 140;
-    addGroup(App.data, x, y, n, cols);
-    saveCurrentClass(); closeModal(); renderAllRoomViews();
+    addGroup(App.room, x, y, n, cols);
+    saveCurrentRoom(); closeModal(); renderAllRoomViews();
   };
 }
 function openEditGroupModal(gid) {
-  const g = App.data.groups[gid];
+  const g = App.room.groups[gid];
   const modal = openModal(`
     <h2>${t('editGroupTitle')}</h2>
     <div class="row"><label>${t('seatsInGroup')}</label><input type="number" id="egSeats" value="${g.seats.length}" min="1" max="10"></div>
     <div class="row"><label>${t('seatsPerRow')}</label><input type="number" id="egCols" value="${g.cols}" min="1" max="6"></div>
     <div class="actions"><button id="egRemove" class="danger">${t('removeGroupBtn')}</button><button id="egCancel">${t('cancel')}</button><button id="egOk" class="primary">${t('save')}</button></div>`);
   modal.querySelector('#egCancel').onclick = closeModal;
-  modal.querySelector('#egRemove').onclick = () => { if (confirm(t('confirmRemoveGroup'))) { removeGroup(App.data, gid); saveCurrentClass(); closeModal(); renderAllRoomViews(); renderPool(); } };
+  modal.querySelector('#egRemove').onclick = () => { if (confirm(t('confirmRemoveGroup'))) { removeGroup(App.room, App.data, gid); saveCurrentRoom(); saveCurrentClass(); closeModal(); renderAllRoomViews(); renderPool(); } };
   modal.querySelector('#egOk').onclick = () => {
-    resizeGroup(App.data, gid, parseInt(modal.querySelector('#egSeats').value) || 1, parseInt(modal.querySelector('#egCols').value) || 1);
-    saveCurrentClass(); closeModal(); renderAllRoomViews();
+    resizeGroup(App.room, App.data, gid, parseInt(modal.querySelector('#egSeats').value) || 1, parseInt(modal.querySelector('#egCols').value) || 1);
+    saveCurrentRoom(); saveCurrentClass(); closeModal(); renderAllRoomViews();
   };
 }
 function openQuickGridModal() {
@@ -422,46 +486,47 @@ function openQuickGridModal() {
     <div class="actions"><button id="qgCancel">${t('cancel')}</button><button id="qgOk" class="primary">${t('confirm')}</button></div>`);
   modal.querySelector('#qgCancel').onclick = closeModal;
   modal.querySelector('#qgOk').onclick = () => {
-    const d = App.data;
-    if (Object.keys(d.groups).length && !confirm(t('confirmOverwriteGrid'))) return;
+    const room = App.data, r = App.room;
+    if (Object.keys(r.groups).length && !confirm(t('confirmOverwriteGrid'))) return;
     const rows = parseInt(modal.querySelector('#qgRows').value) || 1, cols = parseInt(modal.querySelector('#qgCols').value) || 1;
     const style = modal.querySelector('input[name=qgStyle]:checked').value, win = modal.querySelector('input[name=qgWin]:checked').value;
     const [nSeats, colsInGroup] = { enkelt: [1, 1], par: [2, 2], firar: [4, 2] }[style];
-    const { w: seatW, h: seatH } = computeSeatSize(d.students);
+    const { w: seatW, h: seatH } = computeSeatSize(App.data.students);
     const tableRows = Math.ceil(nSeats / colsInGroup);
     const tableW = colsInGroup * (seatW + SEAT_GAP) - SEAT_GAP, tableH = tableRows * (seatH + SEAT_GAP) - SEAT_GAP;
-    d.groups = {};
+    r.groups = {};
     for (let tr = 0; tr < rows; tr++) for (let tc = 0; tc < cols; tc++) {
-      const gid = addGroup(d, 20 + tc * (tableW + GROUP_GAP), 20 + tr * (tableH + GROUP_GAP), nSeats, colsInGroup);
+      const gid = addGroup(r, 20 + tc * (tableW + GROUP_GAP), 20 + tr * (tableH + GROUP_GAP), nSeats, colsInGroup);
       const zones = [];
       if (tr === 0) zones.push('framme');
       if (tr === rows - 1 && rows > 1) zones.push('bak');
       if ((win === 'venstre' || win === 'begge') && tc === 0) zones.push('vindauge');
       if ((win === 'hoyre' || win === 'begge') && tc === cols - 1 && !zones.includes('vindauge')) zones.push('vindauge');
-      if (zones.length) for (const sid of d.groups[gid].seats) d.seat_zones[sid] = zones;
+      if (zones.length) for (const sid of r.groups[gid].seats) r.seat_zones[sid] = zones;
     }
-    ensureConsistency(d); saveCurrentClass(); closeModal(); renderAllRoomViews(); renderPool();
+    ensureConsistency(r, App.data);
+    saveCurrentRoom(); saveCurrentClass(); closeModal(); renderAllRoomViews(); renderPool();
   };
 }
 function openFullHistoryModal() {
-  const d = App.data;
+  const room = App.room, cls = App.data;
   let rows = '';
-  for (const name of d.students) {
-    const neigh = neighbourHistoryFor(d, name).slice(0, 4).map(r => `${r.name} (${r.count}x)`).join(', ');
-    const zh = zoneHistoryFor(d, name);
-    rows += `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(d.genders[name] || '\u2013')}</td><td>${escapeHtml(neigh)}</td><td>${zh.framme}</td><td>${zh.bak}</td><td>${zh.vindauge}</td></tr>`;
+  for (const name of cls.students) {
+    const neigh = neighbourHistoryFor(room, cls, name).slice(0, 4).map(r => `${r.name} (${r.count}x)`).join(', ');
+    const zh = zoneHistoryFor(room, cls, name);
+    rows += `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(cls.genders[name] || '\u2013')}</td><td>${escapeHtml(neigh)}</td><td>${zh.framme}</td><td>${zh.bak}</td><td>${zh.vindauge}</td></tr>`;
   }
   let sessRows = '';
-  for (const s of [...d.sessions].reverse()) sessRows += `<tr><td>${new Date(s.timestamp).toLocaleString()}</td><td>${escapeHtml(s.label || '')}</td><td>${Object.keys(s.arrangement).length}</td></tr>`;
+  for (const s of [...cls.sessions].reverse()) sessRows += `<tr><td>${new Date(s.timestamp).toLocaleString()}</td><td>${escapeHtml(s.label || '')}</td><td>${Object.keys(s.arrangement).length}</td></tr>`;
   const modal = openModal(`
     <h2>${t('fullHistory')}</h2><h3>${t('statsStudents')}</h3>
     <table class="stats"><thead><tr><th>${t('poolHeading')}</th><th>${t('gender')}</th><th>${t('seatWith')}</th>
     <th>${t('zoneFramme')}</th><th>${t('zoneBak')}</th><th>${t('zoneVindauge')}</th></tr></thead><tbody>${rows}</tbody></table>
-    <h3>${t('statsSessions')} (${d.sessions.length})</h3>
+    <h3>${t('statsSessions')} (${cls.sessions.length})</h3>
     <table class="stats"><tbody>${sessRows}</tbody></table>
     <div class="actions"><button id="fhClear" class="danger">${t('clearHistoryBtn')}</button><button id="fhClose" class="primary">${t('close')}</button></div>`);
   modal.querySelector('#fhClose').onclick = closeModal;
-  modal.querySelector('#fhClear').onclick = () => { if (confirm(t('confirmClearHistory'))) { d.sessions = []; saveCurrentClass(); closeModal(); } };
+  modal.querySelector('#fhClear').onclick = () => { if (confirm(t('confirmClearHistory'))) { cls.sessions = []; saveCurrentClass(); closeModal(); } };
 }
 
 // -- Eksport: PNG (canvas) og tekst --
@@ -484,37 +549,75 @@ function wrapText(ctx, text, cx, cy, maxW, lh) {
 }
 function downloadDataUrl(url, filename) { const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); }
 
-function exportImage() {
-  const d = App.data, { w: seatW, h: seatH } = computeSeatSize(d.students);
-  const { positions, boardRect, totalW, totalH } = computeLayout(d, seatW, seatH);
+function isoWeekNumber(d) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+}
+function exportTitleLine() {
+  const s = App.settings, now = new Date(), parts = [];
+  if (s.exportClassName) { const c = Store.listClasses().find(c => c.id === App.classId); if (c) parts.push(c.name); }
+  if (s.exportDate) parts.push(now.toLocaleDateString());
+  if (s.exportTime) parts.push(now.toLocaleTimeString());
+  if (s.exportWeek) parts.push(t('weekShort') + ' ' + isoWeekNumber(now));
+  return parts.length ? `${t('appTitle')} \u2013 ${parts.join(' \u00b7 ')}` : t('appTitle');
+}
+
+async function exportImage() {
+  const room = App.room, cls = App.data, { w: seatW, h: seatH } = computeSeatSize(cls.students);
+  const { positions, boardRect, totalW, totalH } = computeLayout(room, seatW, seatH);
   const titleH = 40;
   const canvas = document.createElement('canvas');
   canvas.width = totalW; canvas.height = totalH + titleH;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#eef2f7'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#111827'; ctx.font = 'bold 16px "Segoe UI",Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  ctx.fillText(`${t('appTitle')} \u2013 ${new Date().toLocaleString()}`, 16, 26);
+
+  const cs = getComputedStyle(document.documentElement);
+  const pageBg = cs.getPropertyValue('--page-bg').trim() || '#eef2f7';
+  const ink = cs.getPropertyValue('--ink').trim() || '#111827';
+  const muted = cs.getPropertyValue('--muted').trim() || '#9ca3af';
+  const panelBg = cs.getPropertyValue('--panel-bg').trim() || '#ffffff';
+  const panelBorder = cs.getPropertyValue('--panel-border').trim() || '#d1d5db';
+
+  ctx.fillStyle = pageBg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (App.settings.bgImage) {
+    await new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.max(canvas.width / img.width, canvas.height / img.height);
+        const w = img.width * scale, h = img.height * scale;
+        ctx.drawImage(img, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+        resolve();
+      };
+      img.onerror = resolve;
+      img.src = App.settings.bgImage;
+    });
+  }
+  ctx.fillStyle = ink; ctx.font = 'bold 16px "Segoe UI",Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(exportTitleLine(), 16, 26);
 
   const [bx, by0, bw] = boardRect, by = by0 + titleH;
   roundRect(ctx, bx, by, bw, BOARD_H, 4); ctx.fillStyle = '#374151'; ctx.fill();
   ctx.fillStyle = 'white'; ctx.font = 'bold 12px "Segoe UI"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(t('boardLabel'), bx + bw / 2, by + BOARD_H / 2);
 
-  const repeatWarn = repeatNeighbourSeats(d, d.arrangement), blWarn = blacklistViolationSeats(d, d.arrangement);
-  for (const g of Object.values(d.groups)) for (const sid of g.seats) {
+  const repeatWarn = repeatNeighbourSeats(room, cls, cls.arrangement), blWarn = blacklistViolationSeats(room, cls, cls.arrangement);
+  for (const g of Object.values(room.groups)) for (const sid of g.seats) {
     if (!positions[sid]) continue;
     const [px, py0] = positions[sid], py = py0 + titleH;
-    const student = d.arrangement[sid], locked = !!d.locked[sid], zones = zonesFor(d, sid);
-    roundRect(ctx, px, py, seatW, seatH, 8); ctx.fillStyle = 'white'; ctx.fill();
-    ctx.strokeStyle = locked ? '#9ca3af' : '#d1d5db'; ctx.lineWidth = 2; ctx.stroke();
+    const student = cls.arrangement[sid], locked = !!cls.locked[sid], zones = zonesFor(room, sid);
+    roundRect(ctx, px, py, seatW, seatH, 8); ctx.fillStyle = panelBg; ctx.fill();
+    ctx.strokeStyle = locked ? '#9ca3af' : panelBorder; ctx.lineWidth = 2; ctx.stroke();
     let zx = px + 6;
     for (const z of zones) {
       roundRect(ctx, zx, py + 6, 16, 14, 2); ctx.fillStyle = ZONE_COLORS[z]; ctx.fill();
       ctx.fillStyle = 'white'; ctx.font = 'bold 8px "Segoe UI"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(z[0].toUpperCase(), zx + 8, py + 13); zx += 20;
     }
-    if (locked) { ctx.fillStyle = '#4b5563'; ctx.font = 'bold 8px "Segoe UI"'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(t('locked'), px + seatW - 6, py + 13); }
-    ctx.fillStyle = student ? '#111827' : '#9ca3af'; ctx.font = (student ? 'bold ' : '') + '13px "Segoe UI"';
+    if (locked) { ctx.fillStyle = '#9ca3af'; ctx.font = 'bold 8px "Segoe UI"'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(t('locked'), px + seatW - 6, py + 13); }
+    ctx.fillStyle = student ? ink : muted; ctx.font = (student ? 'bold ' : '') + '13px "Segoe UI"';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     wrapText(ctx, student || t('empty'), px + seatW / 2, py + seatH / 2, seatW - 12, 17);
     const hits = blWarn[sid];
@@ -531,10 +634,10 @@ function exportImage() {
   downloadDataUrl(canvas.toDataURL('image/png'), 'klasseromplassering.png');
 }
 function exportText() {
-  const d = App.data;
-  const lines = [`${t('appTitle')} \u2013 ${new Date().toLocaleString()}`, ''];
-  const groups = Object.values(d.groups).sort((a, b) => a.y - b.y || a.x - b.x);
-  for (const g of groups) lines.push(`(${g.seats.length}): ${g.seats.map(sid => d.arrangement[sid] || '\u2014').join(', ')}`);
+  const room = App.room, cls = App.data;
+  const lines = [exportTitleLine(), ''];
+  const groups = Object.values(room.groups).sort((a, b) => a.y - b.y || a.x - b.x);
+  for (const g of groups) lines.push(`(${g.seats.length}): ${g.seats.map(sid => cls.arrangement[sid] || '\u2014').join(', ')}`);
   const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
   downloadDataUrl(URL.createObjectURL(blob), 'plassering.txt');
 }
@@ -557,34 +660,34 @@ function renderPool() {
   else if (!shown.length) wrap.innerHTML = `<p class="hint">${t('noMatch')}</p>`;
 }
 function renderStudentHistory(panel, name, showHeader) {
-  const d = App.data;
+  const room = App.room, cls = App.data;
   if (showHeader) panel.innerHTML += `<h3>${escapeHtml(name)}</h3>`;
-  const gender = d.genders[name];
+  const gender = cls.genders[name];
   if (gender) panel.innerHTML += `<p>${t('gender')}: ${escapeHtml(gender)}</p>`;
-  const bl = blacklistPairsFor(d, name);
+  const bl = blacklistPairsFor(cls, name);
   if (bl.length) panel.innerHTML += `<div class="blacklist-box"><b>${t('blacklistWith')}:</b> ${bl.map(escapeHtml).join(', ')}</div>`;
-  const neigh = neighbourHistoryFor(d, name);
+  const neigh = neighbourHistoryFor(room, cls, name);
   panel.innerHTML += `<p><b>${t('seatWith')}</b></p>`;
   if (!neigh.length) panel.innerHTML += `<p class="hint">${t('noHistory')}</p>`;
   else {
-    const curSid = studentSeat(d, name);
-    const curNb = curSid ? new Set(neighbours(d, curSid).map(nb => d.arrangement[nb]).filter(Boolean)) : new Set();
+    const curSid = studentSeat(cls, name);
+    const curNb = curSid ? new Set(neighbours(room, curSid).map(nb => cls.arrangement[nb]).filter(Boolean)) : new Set();
     for (const rec of neigh.slice(0, 5)) {
       const now = curNb.has(rec.name);
       panel.innerHTML += `<div class="neighbour-row${now ? ' now' : ''}">\u2022 ${escapeHtml(rec.name)} \u2014 ${rec.count}x${now ? ' (' + t('sitsNow') + ')' : ''}</div>`;
     }
   }
-  const zh = zoneHistoryFor(d, name);
+  const zh = zoneHistoryFor(room, cls, name);
   panel.innerHTML += `<p><b>${t('zonesHistory')}</b></p>`;
   for (const z of ZONES) panel.innerHTML += `<span class="zone-chip" style="background:${ZONE_COLORS[z]}">${t('zone' + z[0].toUpperCase() + z.slice(1))}: ${zh[z] || 0}</span>`;
 }
 function renderInfoPanel() {
   const panel = document.getElementById('infoPanel');
   panel.innerHTML = '';
-  const d = App.data;
+  const room = App.room, cls = App.data;
   if (App.selectedSeat) {
-    const sid = App.selectedSeat, student = d.arrangement[sid], zones = zonesFor(d, sid), locked = !!d.locked[sid];
-    const gid = groupOf(d, sid), n = gid ? d.groups[gid].seats.length : 1;
+    const sid = App.selectedSeat, student = cls.arrangement[sid], zones = zonesFor(room, sid), locked = !!cls.locked[sid];
+    const gid = groupOf(room, sid), n = gid ? room.groups[gid].seats.length : 1;
     panel.innerHTML += `<h3>${t('seatInGroup', { n })}</h3>`;
     panel.innerHTML += `<p>${zones.map(z => t('zone' + z[0].toUpperCase() + z.slice(1))).join(', ') || '\u2013'}</p>`;
     panel.innerHTML += `<p>${t('lockSeat')}: ${locked ? '\u2713' : '\u2013'}</p>`;
@@ -596,7 +699,7 @@ function renderInfoPanel() {
   }
 }
 
-// -- Klasse-fane: klassar, elevar, kjønn, svarteliste --
+// -- Klasse-fane: klassar, elevar+kjønn (samla), svarteliste --
 function renderClassTab() {
   const list = document.getElementById('classList');
   const classes = Store.listClasses(), defId = Store.getDefaultId();
@@ -629,37 +732,83 @@ function renderGenderList() {
     sel.onchange = () => { if (sel.value) App.data.genders[name] = sel.value; else delete App.data.genders[name]; saveCurrentClass(); };
     row.appendChild(label); row.appendChild(sel); wrap.appendChild(row);
   }
+  if (!App.data.students.length) wrap.innerHTML = `<p class="hint">${t('noStudents')}</p>`;
 }
 function renderBlacklistUI() {
-  const a = document.getElementById('blPickA'), b = document.getElementById('blPickB');
-  a.innerHTML = ''; b.innerHTML = '';
-  for (const name of App.data.students) { a.appendChild(new Option(name, name)); b.appendChild(new Option(name, name)); }
-  const list = document.getElementById('blacklistList'); list.innerHTML = '';
-  for (const [x, y] of App.data.blacklist) {
-    const row = document.createElement('div'); row.className = 'pair-row';
-    const span = document.createElement('span'); span.textContent = `${x} \u2716 ${y}`;
-    const btn = document.createElement('button'); btn.className = 'danger'; btn.textContent = t('removePair');
-    btn.onclick = () => { removeBlacklistPair(App.data, x, y); saveCurrentClass(); renderBlacklistUI(); renderAllRoomViews(); };
-    row.appendChild(span); row.appendChild(btn); list.appendChild(row);
+  const cls = App.data, sel = document.getElementById('blPickA');
+  const prevVal = sel.value;
+  sel.innerHTML = '';
+  for (const name of cls.students) sel.appendChild(new Option(name, name));
+  if (prevVal && cls.students.includes(prevVal)) sel.value = prevVal;
+  renderBlacklistChecklist();
+}
+function renderBlacklistChecklist() {
+  const cls = App.data, main = document.getElementById('blPickA').value;
+  const wrap = document.getElementById('blacklistChecklist');
+  wrap.innerHTML = '';
+  if (!main) { wrap.innerHTML = `<p class="hint">${t('pickTwo')}</p>`; return; }
+  const others = cls.students.filter(n => n !== main);
+  if (!others.length) { wrap.innerHTML = `<p class="hint">${t('noStudents')}</p>`; return; }
+  const already = new Set(blacklistPairsFor(cls, main));
+  for (const name of others) {
+    const row = document.createElement('label'); row.className = 'pair-row';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = already.has(name);
+    cb.onchange = () => {
+      if (cb.checked) addBlacklistPair(cls, main, name); else removeBlacklistPair(cls, main, name);
+      saveCurrentClass(); renderAllRoomViews();
+    };
+    row.appendChild(cb); row.appendChild(document.createTextNode(' ' + name));
+    wrap.appendChild(row);
   }
 }
 
-// -- Klassehandtering (skiftar/lagar/slettar) --
+// -- Klasserom-fane: rom-veljar --
+function renderRoomTab() {
+  const rooms = Store.listRooms(), sel = document.getElementById('roomSelect');
+  sel.innerHTML = '';
+  for (const r of rooms) sel.appendChild(new Option(r.name, r.id));
+  sel.value = App.roomId;
+}
+
+// -- Klasse-/rom-bytte og sjølvlækjande rom-tilknyting --
+function syncFlipButton() { document.getElementById('btnFlipRoom').classList.toggle('active', App.room.view_flipped); }
+function loadRoomForCurrentClass() {
+  let roomId = App.data.room_id;
+  let room = roomId ? Store.loadRoom(roomId) : null;
+  if (!room) {
+    roomId = Store.createRoom(t('newRoom'), { autoPopulateFor: App.data.students.length });
+    App.data.room_id = roomId;
+    saveCurrentClass();
+    room = Store.loadRoom(roomId);
+  }
+  App.roomId = roomId; App.room = room;
+}
 function switchClass(id) {
   App.classId = id;
   App.data = Store.loadClass(id) || newClassData();
+  loadRoomForCurrentClass();
   App.selectedSeat = null; App.selectedStudent = null; App.multiSelected = new Set(); App.armedStudent = null;
-  fillGenderModeSelect();
-  renderClassTab(); renderAllRoomViews(); renderPool(); renderInfoPanel();
+  fillGenderModeSelect(); syncFlipButton();
+  renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel();
+}
+function switchRoom(id) {
+  const room = Store.loadRoom(id);
+  if (!room) return;
+  App.roomId = id; App.room = room;
+  App.data.room_id = id;
+  saveCurrentClass();
+  App.selectedSeat = null; App.multiSelected = new Set();
+  syncFlipButton(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel();
 }
 function saveCurrentClass() { if (App.classId) Store.saveClass(App.classId, App.data); }
+function saveCurrentRoom() { if (App.roomId) Store.saveRoom(App.roomId, App.room); }
 
 // -- Status og div. --
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function setStatus(text) { document.getElementById('statusBar').textContent = text; }
 function updateStatusBar() {
-  const d = App.data;
-  setStatus(`${d.students.length} \u00b7 ${Object.keys(d.arrangement).length}/${allSeatIds(d).length} \u00b7 ${Object.keys(d.groups).length}`);
+  const cls = App.data;
+  setStatus(`${cls.students.length} \u00b7 ${Object.keys(cls.arrangement).length}/${allSeatIds(App.room).length} \u00b7 ${Object.keys(App.room.groups).length}`);
 }
 function clampZoom(z) { return Math.max(0.5, Math.min(2, Math.round(z * 100) / 100)); }
 function updateZoomLabel(which) {
@@ -673,7 +822,21 @@ function fillGenderModeSelect() {
   sel.value = App.data.gender_weight_mode;
 }
 
-// -- Innstillingar / tema --
+// -- Tema (fullstendige fargesett - lys/mørk/Catppuccin) --
+const THEMES = {
+  lys: { page: '#eef2f7', ink: '#111827', muted: '#6b7280', panel: '#ffffff', border: '#e5e7eb',
+         input: '#ffffff', row: '#f9fafb', rowActive: '#dbeafe', glass: '255,255,255',
+         header: 'rgba(17,24,39,.92)', accent: '#2563eb' },
+  mork: { page: '#0f172a', ink: '#e5e7eb', muted: '#94a3b8', panel: '#1e293b', border: '#334155',
+          input: '#1e293b', row: '#243244', rowActive: '#1e3a5f', glass: '30,41,59',
+          header: 'rgba(2,6,23,.92)', accent: '#3b82f6' },
+  catppuccin_mocha: { page: '#1e1e2e', ink: '#cdd6f4', muted: '#a6adc8', panel: '#181825', border: '#313244',
+          input: '#313244', row: '#313244', rowActive: '#45475a', glass: '24,24,37',
+          header: 'rgba(17,17,27,.92)', accent: '#89b4fa' },
+  catppuccin_latte: { page: '#eff1f5', ink: '#4c4f69', muted: '#6c6f85', panel: '#ffffff', border: '#ccd0da',
+          input: '#e6e9ef', row: '#e6e9ef', rowActive: '#ccd0da', glass: '255,255,255',
+          header: 'rgba(76,79,105,.92)', accent: '#1e66f5' },
+};
 function shade(hex, pct) {
   const n = parseInt(hex.slice(1), 16);
   let r = (n >> 16) + Math.round(2.55 * pct), g = (n >> 8 & 0xff) + Math.round(2.55 * pct), b = (n & 0xff) + Math.round(2.55 * pct);
@@ -681,7 +844,11 @@ function shade(hex, pct) {
   return '#' + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1);
 }
 function applySettings(s) {
-  const root = document.documentElement.style;
+  const root = document.documentElement.style, th = THEMES[s.theme] || THEMES.lys;
+  root.setProperty('--page-bg', th.page); root.setProperty('--ink', th.ink); root.setProperty('--muted', th.muted);
+  root.setProperty('--panel-bg', th.panel); root.setProperty('--panel-border', th.border);
+  root.setProperty('--input-bg', th.input); root.setProperty('--row-bg', th.row); root.setProperty('--row-active', th.rowActive);
+  root.setProperty('--glass-rgb', th.glass); root.setProperty('--header-bg', th.header);
   root.setProperty('--accent', s.accent); root.setProperty('--accent-dark', shade(s.accent, -15));
   root.setProperty('--radius', s.radius + 'px'); root.setProperty('--blur', s.blur + 'px');
   root.setProperty('--opacity', s.opacity); root.setProperty('--ui-scale', s.uiScale); root.setProperty('--font-scale', s.fontScale);
@@ -689,6 +856,15 @@ function applySettings(s) {
 }
 function renderSettingsTab() {
   const s = App.settings;
+  const cards = document.getElementById('themeCards'); cards.innerHTML = '';
+  for (const key of Object.keys(THEMES)) {
+    const th = THEMES[key];
+    const c = document.createElement('div'); c.className = 'theme-card' + (s.theme === key ? ' active' : '');
+    c.title = t('theme_' + key);
+    c.innerHTML = `<div class="sw1" style="background:${th.page}"></div><div class="sw2" style="background:${th.panel}"></div>`;
+    c.onclick = () => { s.theme = key; s.accent = th.accent; Store.saveSettings(s); applySettings(s); renderSettingsTab(); };
+    cards.appendChild(c);
+  }
   const sw = document.getElementById('accentSwatches'); sw.innerHTML = '';
   for (const c of ACCENT_PRESETS) {
     const d = document.createElement('div'); d.className = 'swatch' + (s.accent === c ? ' active' : ''); d.style.background = c;
@@ -701,7 +877,24 @@ function renderSettingsTab() {
   document.getElementById('opacityRange').value = s.opacity;
   document.getElementById('uiScaleRange').value = s.uiScale;
   document.getElementById('fontScaleRange').value = s.fontScale;
+  document.getElementById('seatSizeRange').value = s.seatSizeOverride || SEAT_W;
+  document.getElementById('seatSizeAuto').checked = !s.seatSizeOverride;
+  document.getElementById('seatSizeRange').disabled = !s.seatSizeOverride;
   document.getElementById('bgPreview').style.backgroundImage = s.bgImage ? `url(${s.bgImage})` : 'none';
+  document.getElementById('exportDate').checked = !!s.exportDate;
+  document.getElementById('exportTime').checked = !!s.exportTime;
+  document.getElementById('exportWeek').checked = !!s.exportWeek;
+  document.getElementById('exportClassName').checked = !!s.exportClassName;
+}
+
+// -- Panel: minimer/endre storleik (Plassering-fana) --
+function toggleSidePanel(el, key) {
+  const collapsed = el.classList.toggle('collapsed');
+  App.settings[key] = collapsed; Store.saveSettings(App.settings);
+}
+function applyPanelCollapseState() {
+  document.getElementById('poolPanel').classList.toggle('collapsed', !!App.settings.poolCollapsed);
+  document.getElementById('infoPanelWrap').classList.toggle('collapsed', !!App.settings.infoCollapsed);
 }
 
 // -- Språk --
@@ -711,7 +904,7 @@ function applyStaticTranslations() {
   document.querySelectorAll('[data-lang]').forEach(btn => btn.classList.toggle('active', btn.dataset.lang === currentLang));
 }
 function refreshDynamicTexts() {
-  fillGenderModeSelect(); renderClassTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderSettingsTab();
+  fillGenderModeSelect(); renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderSettingsTab();
 }
 function wireLangButtons() {
   document.querySelectorAll('[data-lang]').forEach(btn => btn.onclick = () => { setLang(btn.dataset.lang); applyStaticTranslations(); refreshDynamicTexts(); });
@@ -721,9 +914,10 @@ function wireLangButtons() {
 function wireEvents() {
   document.querySelectorAll('.tab-btn').forEach(btn => btn.onclick = () => switchTab(btn.dataset.tab));
 
+  // -- Klasse-fane --
   document.getElementById('btnNewClass').onclick = () => {
     const name = prompt(t('newClassPrompt'), t('newClass')); if (!name) return;
-    switchClass(Store.createClass(name)); renderClassTab();
+    switchClass(Store.createClass(name, null)); renderClassTab();
   };
   document.getElementById('btnRenameClass').onclick = () => {
     const cur = Store.listClasses().find(c => c.id === App.classId); if (!cur) return;
@@ -732,8 +926,9 @@ function wireEvents() {
   };
   document.getElementById('btnDuplicateClass').onclick = () => {
     const cur = Store.listClasses().find(c => c.id === App.classId);
-    const id = Store.createClass((cur ? cur.name : 'Klasse') + ' (kopi)');
-    Store.saveClass(id, JSON.parse(JSON.stringify(App.data)));
+    const id = Store.createClass((cur ? cur.name : 'Klasse') + ' (kopi)', App.data.room_id);
+    const copy = JSON.parse(JSON.stringify(App.data));
+    Store.saveClass(id, copy);
     switchClass(id); renderClassTab();
   };
   document.getElementById('btnDeleteClass').onclick = () => {
@@ -741,21 +936,28 @@ function wireEvents() {
     if (!confirm(t('deleteClassConfirm', { name: cur.name }))) return;
     Store.deleteClass(App.classId);
     const next = Store.getDefaultId();
-    if (next) switchClass(next); else { App.classId = Store.createClass(t('newClass')); App.data = Store.loadClass(App.classId); Store.setDefaultId(App.classId); }
-    renderClassTab(); renderAllRoomViews(); renderPool();
+    if (next) switchClass(next); else { const id = Store.createClass(t('newClass'), null); Store.setDefaultId(id); switchClass(id); }
+    renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool();
   };
   document.getElementById('btnSetDefault').onclick = () => { Store.setDefaultId(App.classId); renderClassTab(); };
   document.getElementById('btnExportClass').onclick = () => {
-    const blob = new Blob([JSON.stringify(App.data, null, 2)], { type: 'application/json' });
+    const full = { ...App.data, version: CLASS_VERSION, room_id: null, room: App.room };
+    const blob = new Blob([JSON.stringify(full, null, 2)], { type: 'application/json' });
     downloadDataUrl(URL.createObjectURL(blob), 'klasse.json');
   };
   document.getElementById('btnImportClass').onclick = () => document.getElementById('importClassFile').click();
   document.getElementById('importClassFile').onchange = async e => {
     const file = e.target.files[0]; if (!file) return;
     try {
-      const data = normalizeClassData(JSON.parse(await file.text()));
-      const id = Store.createClass(file.name.replace(/\.json$/i, ''));
-      Store.saveClass(id, data); switchClass(id); renderClassTab();
+      const raw = JSON.parse(await file.text());
+      const { classData, embeddedRoom } = normalizeClassData(raw);
+      const name = file.name.replace(/\.json$/i, '');
+      let roomId = null;
+      if (embeddedRoom) { roomId = Store.createRoom(name + ' - rom'); Store.saveRoom(roomId, embeddedRoom); }
+      else if (raw.room && !classData.room_id) { roomId = Store.createRoom(name + ' - rom'); Store.saveRoom(roomId, raw.room); }
+      classData.room_id = roomId || classData.room_id;
+      const id = Store.createClass(name, classData.room_id);
+      Store.saveClass(id, classData); switchClass(id); renderClassTab();
     } catch (err) { alert('Feil: ' + err.message); }
     e.target.value = '';
   };
@@ -767,7 +969,7 @@ function wireEvents() {
     for (const line of raw) { const n = line.trim(); if (n && !seen.has(n)) { seen.add(n); list.push(n); } }
     const removed = App.data.students.filter(s => !list.includes(s));
     for (const r of removed) for (const [sid, name] of Object.entries(App.data.arrangement)) if (name === r) delete App.data.arrangement[sid];
-    App.data.students = list; ensureConsistency(App.data);
+    App.data.students = list; ensureConsistency(App.room, App.data);
     saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderInfoPanel();
   };
   document.getElementById('btnImportStudents').onclick = () => document.getElementById('importStudentsFile').click();
@@ -778,20 +980,44 @@ function wireEvents() {
     document.getElementById('studentsText').value = (cur ? cur + '\n' : '') + text.split('\n').map(l => l.trim()).filter(Boolean).join('\n');
     e.target.value = '';
   };
-  document.getElementById('btnAddPair').onclick = () => {
-    const a = document.getElementById('blPickA').value, b = document.getElementById('blPickB').value;
-    if (!a || !b || a === b) { alert(t('pickTwo')); return; }
-    if (!addBlacklistPair(App.data, a, b)) { alert(t('pairExists')); return; }
-    saveCurrentClass(); renderBlacklistUI(); renderAllRoomViews();
-  };
+  document.getElementById('blPickA').onchange = renderBlacklistChecklist;
 
+  // -- Klasserom-fane: rom-styring --
+  document.getElementById('roomSelect').onchange = e => {
+    if (!confirm(t('roomSwitchConfirm'))) { document.getElementById('roomSelect').value = App.roomId; return; }
+    switchRoom(e.target.value);
+  };
+  document.getElementById('btnNewRoom').onclick = () => {
+    const name = prompt(t('newRoomPrompt'), t('newRoom')); if (!name) return;
+    const id = Store.createRoom(name, { autoPopulateFor: App.data.students.length });
+    switchRoom(id); renderRoomTab();
+  };
+  document.getElementById('btnRenameRoom').onclick = () => {
+    const cur = Store.listRooms().find(r => r.id === App.roomId); if (!cur) return;
+    const name = prompt(t('renameRoomPrompt'), cur.name); if (!name) return;
+    Store.renameRoom(App.roomId, name); renderRoomTab();
+  };
+  document.getElementById('btnDuplicateRoom').onclick = () => {
+    const cur = Store.listRooms().find(r => r.id === App.roomId);
+    const id = Store.duplicateRoom(App.roomId, (cur ? cur.name : 'Rom') + ' (kopi)');
+    if (id) { switchRoom(id); renderRoomTab(); }
+  };
+  document.getElementById('btnDeleteRoom').onclick = () => {
+    const cur = Store.listRooms().find(r => r.id === App.roomId); if (!cur) return;
+    if (!confirm(t('deleteRoomConfirm', { name: cur.name }))) return;
+    const inUse = Store.roomsInUseBy(App.roomId).filter(c => c.id !== App.classId);
+    Store.deleteRoom(App.roomId);
+    for (const c of inUse) { const cd = Store.loadClass(c.id); if (cd) { cd.room_id = null; Store.saveClass(c.id, cd); } }
+    loadRoomForCurrentClass(); syncFlipButton(); renderRoomTab(); renderAllRoomViews(); renderPool();
+  };
   document.getElementById('btnAddGroup').onclick = openAddGroupModal;
   document.getElementById('btnQuickGrid').onclick = openQuickGridModal;
   document.getElementById('btnBulkZones').onclick = openBulkZonesModal;
+  document.getElementById('btnMergeGroups').onclick = doMergeSelectedGroups;
+  document.getElementById('btnSplitGroups').onclick = doSplitSelectedSeats;
   document.getElementById('btnFlipRoom').onclick = () => {
-    App.data.view_flipped = !App.data.view_flipped;
-    document.getElementById('btnFlipRoom').classList.toggle('active', App.data.view_flipped);
-    saveCurrentClass(); renderAllRoomViews();
+    App.room.view_flipped = !App.room.view_flipped;
+    syncFlipButton(); saveCurrentRoom(); renderAllRoomViews();
   };
   document.getElementById('zoomInRoom').onclick = () => { App.zoomRoom = clampZoom(App.zoomRoom + .1); updateZoomLabel('Room'); renderRoom('roomCanvasA', 'layout', App.zoomRoom); };
   document.getElementById('zoomOutRoom').onclick = () => { App.zoomRoom = clampZoom(App.zoomRoom - .1); updateZoomLabel('Room'); renderRoom('roomCanvasA', 'layout', App.zoomRoom); };
@@ -802,19 +1028,20 @@ function wireEvents() {
   document.getElementById('roomScrollA').addEventListener('wheel', e => { if (e.ctrlKey) { e.preventDefault(); App.zoomRoom = clampZoom(App.zoomRoom + (e.deltaY < 0 ? .1 : -.1)); updateZoomLabel('Room'); renderRoom('roomCanvasA', 'layout', App.zoomRoom); } }, { passive: false });
   document.getElementById('roomScrollB').addEventListener('wheel', e => { if (e.ctrlKey) { e.preventDefault(); App.zoomSeat = clampZoom(App.zoomSeat + (e.deltaY < 0 ? .1 : -.1)); updateZoomLabel('Seat'); renderRoom('roomCanvasB', 'seating', App.zoomSeat); } }, { passive: false });
 
+  // -- Plasserings-fane --
   document.getElementById('btnRandom').onclick = () => {
-    const d = App.data;
-    if (!d.students.length) { alert(t('noStudents')); return; }
-    if (!Object.keys(d.groups).length) { alert(t('noGroups')); return; }
-    const totalSeats = allSeatIds(d).length;
-    if (d.students.length > totalSeats && !confirm(t('tooFewSeats', { students: d.students.length, seats: totalSeats }))) return;
-    d.arrangement = generateArrangement(d, { genders: d.genders, genderMode: d.gender_weight_mode });
+    const room = App.room, cls = App.data;
+    if (!cls.students.length) { alert(t('noStudents')); return; }
+    if (!Object.keys(room.groups).length) { alert(t('noGroups')); return; }
+    const totalSeats = allSeatIds(room).length;
+    if (cls.students.length > totalSeats && !confirm(t('tooFewSeats', { students: cls.students.length, seats: totalSeats }))) return;
+    cls.arrangement = generateArrangement(room, cls, { genders: cls.genders, genderMode: cls.gender_weight_mode });
     saveCurrentClass(); App.selectedSeat = null;
     renderAllRoomViews(); renderPool(); renderInfoPanel();
-    const viol = blacklistViolationSeats(d, d.arrangement);
+    const viol = blacklistViolationSeats(room, cls, cls.arrangement);
     if (Object.keys(viol).length) {
       const pairs = new Set();
-      for (const [sid, others] of Object.entries(viol)) { const name = d.arrangement[sid]; for (const o of others) pairs.add([name, o].sort().join(' & ')); }
+      for (const [sid, others] of Object.entries(viol)) { const name = cls.arrangement[sid]; for (const o of others) pairs.add([name, o].sort().join(' & ')); }
       alert(t('blacklistUnavoidable') + '\n' + [...pairs].join('\n'));
     }
   };
@@ -832,13 +1059,27 @@ function wireEvents() {
   document.getElementById('btnFullHistory').onclick = openFullHistoryModal;
   document.getElementById('btnExportImage').onclick = exportImage;
   document.getElementById('btnExportText').onclick = exportText;
+  document.getElementById('poolCollapseBtn').onclick = () => toggleSidePanel(document.getElementById('poolPanel'), 'poolCollapsed');
+  document.getElementById('infoCollapseBtn').onclick = () => toggleSidePanel(document.getElementById('infoPanelWrap'), 'infoCollapsed');
 
+  // -- Innstillingar --
   document.getElementById('accentCustom').oninput = e => { App.settings.accent = e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
   document.getElementById('radiusRange').oninput = e => { App.settings.radius = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
   document.getElementById('blurRange').oninput = e => { App.settings.blur = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
   document.getElementById('opacityRange').oninput = e => { App.settings.opacity = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
   document.getElementById('uiScaleRange').oninput = e => { App.settings.uiScale = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
   document.getElementById('fontScaleRange').oninput = e => { App.settings.fontScale = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
+  document.getElementById('seatSizeAuto').onchange = e => {
+    App.settings.seatSizeOverride = e.target.checked ? null : parseInt(document.getElementById('seatSizeRange').value);
+    Store.saveSettings(App.settings); document.getElementById('seatSizeRange').disabled = e.target.checked;
+    renderAllRoomViews();
+  };
+  document.getElementById('seatSizeRange').oninput = e => {
+    App.settings.seatSizeOverride = +e.target.value; Store.saveSettings(App.settings); renderAllRoomViews();
+  };
+  for (const [id, key] of [['exportDate', 'exportDate'], ['exportTime', 'exportTime'], ['exportWeek', 'exportWeek'], ['exportClassName', 'exportClassName']]) {
+    document.getElementById(id).onchange = e => { App.settings[key] = e.target.checked; Store.saveSettings(App.settings); };
+  }
   document.getElementById('btnUploadBg').onclick = () => document.getElementById('bgFile').click();
   document.getElementById('bgFile').onchange = e => {
     const file = e.target.files[0]; if (!file) return;
@@ -858,7 +1099,7 @@ function wireEvents() {
     reader.readAsDataURL(file); e.target.value = '';
   };
   document.getElementById('btnRemoveBg').onclick = () => { App.settings.bgImage = null; Store.saveSettings(App.settings); applySettings(App.settings); renderSettingsTab(); };
-  document.getElementById('btnResetSettings').onclick = () => { App.settings = defaultSettings(); Store.saveSettings(App.settings); applySettings(App.settings); renderSettingsTab(); };
+  document.getElementById('btnResetSettings').onclick = () => { App.settings = defaultSettings(); Store.saveSettings(App.settings); applySettings(App.settings); renderSettingsTab(); applyPanelCollapseState(); };
 
   wireLangButtons();
   document.addEventListener('keydown', e => {
@@ -879,10 +1120,11 @@ function init() {
   applyStaticTranslations();
   wireEvents();
   renderSettingsTab();
+  applyPanelCollapseState();
   updateZoomLabel('Room'); updateZoomLabel('Seat');
 
   let defId = Store.getDefaultId();
-  if (!defId) defId = Store.createClass(t('newClass'));
+  if (!defId) defId = Store.createClass(t('newClass'), null);
   switchClass(defId);
 }
 window.addEventListener('DOMContentLoaded', init);

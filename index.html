@@ -50,17 +50,20 @@
     <div class="panel">
       <h2 data-i18n="studentsHeading">Elevar</h2>
       <p class="hint" data-i18n="studentsHelp">Éin elev per linje.</p>
-      <textarea id="studentsText" rows="8" style="width:100%"></textarea>
-      <div class="toolbar" style="margin-top:.5rem">
-        <button id="btnSaveStudents" class="primary" data-i18n="saveStudents">Lagre elevliste</button>
-        <button id="btnImportStudents" data-i18n="importFile">Importer frå fil...</button>
-        <input type="file" id="importStudentsFile" accept=".txt" hidden>
+      <div class="class-students-grid">
+        <div>
+          <textarea id="studentsText" rows="10"></textarea>
+          <div class="toolbar" style="margin-top:.5rem">
+            <button id="btnSaveStudents" class="primary" data-i18n="saveStudents">Lagre elevliste</button>
+            <button id="btnImportStudents" data-i18n="importFile">Importer frå fil...</button>
+            <input type="file" id="importStudentsFile" accept=".txt" hidden>
+          </div>
+        </div>
+        <div>
+          <h3 data-i18n="gendersHeading" style="margin-top:0">Kjønn</h3>
+          <div id="genderList" class="gender-list-scroll"></div>
+        </div>
       </div>
-    </div>
-
-    <div class="panel">
-      <h2 data-i18n="gendersHeading">Kjønn</h2>
-      <div id="genderList"></div>
     </div>
 
     <div class="panel">
@@ -68,21 +71,29 @@
       <p class="hint" data-i18n="blacklistHelp">Elevpar som ikkje bør sitje saman.</p>
       <div class="row">
         <select id="blPickA"></select>
-        <span data-i18n="blacklistWith">skal ikkje sitje med</span>
-        <select id="blPickB"></select>
-        <button id="btnAddPair" data-i18n="addPair">Legg til par</button>
       </div>
-      <div id="blacklistList" style="margin-top:.5rem"></div>
+      <div id="blacklistChecklist" style="margin-top:.5rem"></div>
     </div>
   </section>
 
   <!-- ===================== KLASSEROM ===================== -->
   <section id="tab-room" class="tabview">
     <div class="toolbar">
+      <span data-i18n="roomHeading">Rom:</span>
+      <select id="roomSelect"></select>
+      <button id="btnNewRoom" data-i18n="newRoom">Nytt rom</button>
+      <button id="btnRenameRoom" data-i18n="renameRoom">Endre namn</button>
+      <button id="btnDuplicateRoom" data-i18n="duplicateRoom">Kopier</button>
+      <button id="btnDeleteRoom" class="danger" data-i18n="deleteRoom">Slett</button>
+    </div>
+    <div class="toolbar">
       <button id="btnAddGroup" class="primary" data-i18n="roomToolbarAdd">+ Bordgruppe</button>
       <button id="btnQuickGrid" data-i18n="roomToolbarGrid">Lag rutenett automatisk...</button>
       <button id="btnFlipRoom" class="toggle" data-i18n="roomToolbarFlip">Snu visning</button>
       <button id="btnBulkZones" data-i18n="bulkZonesBtn">Rediger soner (valde)</button>
+      <button id="btnMergeGroups" data-i18n="mergeGroups">Slå saman valde bord</button>
+      <button id="btnSplitGroups" data-i18n="splitGroups">Skil ut valde plassar</button>
+      <span class="hint" id="roomSeatCount"></span>
       <span class="spacer"></span>
       <span data-i18n="zoomLabel">Skala</span>
       <button id="zoomOutRoom">-</button>
@@ -109,10 +120,15 @@
       <input type="text" id="poolSearch">
     </div>
     <div class="seating-layout">
-      <div class="pool-panel">
-        <h3 data-i18n="poolHeading">Elevar</h3>
-        <p class="hint" data-i18n="poolHelp"></p>
-        <div class="pool-list" id="poolList"></div>
+      <div class="pool-panel side-panel" id="poolPanel">
+        <div class="side-panel-head">
+          <h3 data-i18n="poolPanelTitle">Elevar</h3>
+          <button class="collapse-btn" id="poolCollapseBtn">&harr;</button>
+        </div>
+        <div class="side-panel-body">
+          <p class="hint" data-i18n="poolHelp"></p>
+          <div class="pool-list" id="poolList"></div>
+        </div>
       </div>
       <div class="room-wrap">
         <div class="toolbar">
@@ -130,7 +146,13 @@
           <div class="room-canvas" id="roomCanvasB"></div>
         </div>
       </div>
-      <div class="info-panel panel" id="infoPanel"></div>
+      <div class="info-panel side-panel panel" id="infoPanelWrap">
+        <div class="side-panel-head">
+          <h3 data-i18n="infoPanelTitle">Historikk</h3>
+          <button class="collapse-btn" id="infoCollapseBtn">&harr;</button>
+        </div>
+        <div class="side-panel-body" id="infoPanel"></div>
+      </div>
     </div>
   </section>
 
@@ -145,6 +167,9 @@
           <button data-lang="nb">Bokmål</button>
           <button data-lang="en">English</button>
         </div>
+
+        <label data-i18n="settingsTheme">Tema</label>
+        <div class="theme-cards" id="themeCards"></div>
 
         <label data-i18n="settingsAccent">Fargetema</label>
         <div class="row">
@@ -169,11 +194,25 @@
         <label data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
         <input type="range" id="opacityRange" min="0.2" max="1" step="0.05">
 
+        <label data-i18n="settingsSeatSize">Pultstorleik</label>
+        <div class="row">
+          <label class="row"><input type="checkbox" id="seatSizeAuto"> <span data-i18n="seatSizeAuto">Automatisk</span></label>
+          <input type="range" id="seatSizeRange" min="100" max="220" step="5">
+        </div>
+
         <label data-i18n="settingsUiScale">Storleik på grensesnitt</label>
         <input type="range" id="uiScaleRange" min="0.8" max="1.3" step="0.05">
 
         <label data-i18n="settingsFontScale">Tekststorleik</label>
         <input type="range" id="fontScaleRange" min="0.8" max="1.4" step="0.05">
+
+        <label data-i18n="settingsExport">Med på biletet</label>
+        <div class="row">
+          <label class="row"><input type="checkbox" id="exportDate"> <span data-i18n="exportDateLbl">Dato</span></label>
+          <label class="row"><input type="checkbox" id="exportTime"> <span data-i18n="exportTimeLbl">Tidspunkt</span></label>
+          <label class="row"><input type="checkbox" id="exportWeek"> <span data-i18n="exportWeekLbl">Vekenummer</span></label>
+          <label class="row"><input type="checkbox" id="exportClassName"> <span data-i18n="exportClassNameLbl">Klassenamn</span></label>
+        </div>
       </div>
       <div class="toolbar" style="margin-top:1rem">
         <button id="btnResetSettings" data-i18n="settingsReset">Tilbakestill innstillingar</button>

@@ -37,6 +37,13 @@ nn: {
   gridWindow: "Kor er vindauga?", winNone: "Ingen vindaugsvegg", winLeft: "Vindauge til venstre",
   winRight: "Vindauge til høgre", winBoth: "Vindauge på begge sider",
   confirmOverwriteGrid: "Dette lagar nytt bordoppsett og fjernar gjeldande bordgrupper. Halde fram?",
+  roomHeading: "Rom:", newRoom: "Nytt rom", renameRoom: "Endre namn", duplicateRoom: "Kopier", deleteRoom: "Slett",
+  newRoomPrompt: "Namn på nytt rom:", renameRoomPrompt: "Nytt namn på rommet:",
+  deleteRoomConfirm: "Slette romet «{name}»? Klassar som brukar det får eit nytt, tomt rom.",
+  roomSwitchConfirm: "Byte til dette romet for klassen? Gjeldande plassering/lås kan bli borte for plassar som ikkje finst i det nye rommet.",
+  mergeGroups: "Slå saman valde bord", splitGroups: "Skil ut valde plassar",
+  mergeNeedTwo: "Vel minst to bordgrupper (Ctrl+klikk på éin plass i kvar) for å slå dei saman.",
+  splitNeedSelection: "Vel plassar (Ctrl+klikk) for å skilje dei ut i eiga bordgruppe.",
 
   seatingRandom: "Tilfeldig plassering", seatingClear: "Tøm plassering", seatingSave: "Lagre plassering til historikk",
   genderWeight: "Kjønnsvekting", genderNone2: "Ingen kjønnsvekting", genderUnlike: "Vekt mot ULIKT kjønn",
@@ -60,10 +67,15 @@ nn: {
   settingsBlur: "Uskarpheit på pultar", settingsOpacity: "Gjennomsikt på pultar",
   settingsUiScale: "Storleik på grensesnitt", settingsFontScale: "Tekststorleik",
   settingsReset: "Tilbakestill innstillingar", settingsLang: "Språk",
+  theme_lys: "Lys", theme_mork: "Mørk", theme_catppuccin_mocha: "Catppuccin (mørk)", theme_catppuccin_latte: "Catppuccin (lys)",
+  settingsTheme: "Tema", settingsSeatSize: "Pultstorleik", seatSizeAuto: "Automatisk (etter namn)",
+  settingsExport: "Med på biletet", exportDateLbl: "Dato", exportTimeLbl: "Tidspunkt",
+  exportWeekLbl: "Vekenummer", exportClassNameLbl: "Klassenamn", weekShort: "veke",
+  poolPanelTitle: "Elevar", infoPanelTitle: "Historikk", expandPanel: "Vis", collapsePanel: "Skjul",
 
   plassRad: "rad", plassKol: "kol", zoneFramme: "Framme", zoneBak: "Bak", zoneVindauge: "Vindauge",
   confirm: "Bruk", cancel: "Avbryt", save: "Lagre", close: "Lukk", add: "Legg til", remove: "Fjern",
-  gender: "Kjønn", seatInGroup: "Bordgruppe med {n} plassar", boardLabel: "TAVLE",
+  gender: "Kjønn", seatInGroup: "Bordgruppe med {n} plassar", boardLabel: "TAVLE", roomTotalSeats: "{n} plassar totalt",
 },
 
 nb: {
@@ -100,6 +112,13 @@ nb: {
   gridWindow: "Hvor er vinduene?", winNone: "Ingen vindusvegg", winLeft: "Vindu til venstre",
   winRight: "Vindu til høyre", winBoth: "Vindu på begge sider",
   confirmOverwriteGrid: "Dette lager nytt bordoppsett og fjerner gjeldende bordgrupper. Fortsette?",
+  roomHeading: "Rom:", newRoom: "Nytt rom", renameRoom: "Endre navn", duplicateRoom: "Kopier", deleteRoom: "Slett",
+  newRoomPrompt: "Navn på nytt rom:", renameRoomPrompt: "Nytt navn på rommet:",
+  deleteRoomConfirm: "Slette rommet «{name}»? Klasser som bruker det får et nytt, tomt rom.",
+  roomSwitchConfirm: "Bytte til dette rommet for klassen? Gjeldende plassering/lås kan forsvinne for plasser som ikke finnes i det nye rommet.",
+  mergeGroups: "Slå sammen valgte bord", splitGroups: "Skill ut valgte plasser",
+  mergeNeedTwo: "Velg minst to bordgrupper (Ctrl+klikk på én plass i hver) for å slå dem sammen.",
+  splitNeedSelection: "Velg plasser (Ctrl+klikk) for å skille dem ut i egen bordgruppe.",
 
   seatingRandom: "Tilfeldig plassering", seatingClear: "Tøm plassering", seatingSave: "Lagre plassering til historikk",
   genderWeight: "Kjønnsvekting", genderNone2: "Ingen kjønnsvekting", genderUnlike: "Vekt mot ULIKT kjønn",
@@ -123,10 +142,15 @@ nb: {
   settingsBlur: "Uskarphet på pulter", settingsOpacity: "Gjennomsikt på pulter",
   settingsUiScale: "Størrelse på grensesnitt", settingsFontScale: "Tekststørrelse",
   settingsReset: "Tilbakestill innstillinger", settingsLang: "Språk",
+  theme_lys: "Lys", theme_mork: "Mørk", theme_catppuccin_mocha: "Catppuccin (mørk)", theme_catppuccin_latte: "Catppuccin (lys)",
+  settingsTheme: "Tema", settingsSeatSize: "Pultstørrelse", seatSizeAuto: "Automatisk (etter navn)",
+  settingsExport: "Med på bildet", exportDateLbl: "Dato", exportTimeLbl: "Tidspunkt",
+  exportWeekLbl: "Ukenummer", exportClassNameLbl: "Klassenavn", weekShort: "uke",
+  poolPanelTitle: "Elever", infoPanelTitle: "Historikk", expandPanel: "Vis", collapsePanel: "Skjul",
 
   plassRad: "rad", plassKol: "kol", zoneFramme: "Framme", zoneBak: "Bak", zoneVindauge: "Vindu",
   confirm: "Bruk", cancel: "Avbryt", save: "Lagre", close: "Lukk", add: "Legg til", remove: "Fjern",
-  gender: "Kjønn", seatInGroup: "Bordgruppe med {n} plasser", boardLabel: "TAVLE",
+  gender: "Kjønn", seatInGroup: "Bordgruppe med {n} plasser", boardLabel: "TAVLE", roomTotalSeats: "{n} plasser totalt",
 },
 
 en: {
@@ -163,6 +187,13 @@ en: {
   gridWindow: "Where are the windows?", winNone: "No window wall", winLeft: "Windows on the left",
   winRight: "Windows on the right", winBoth: "Windows on both sides",
   confirmOverwriteGrid: "This creates a new table layout and removes current table groups. Continue?",
+  roomHeading: "Room:", newRoom: "New room", renameRoom: "Rename", duplicateRoom: "Duplicate", deleteRoom: "Delete",
+  newRoomPrompt: "Name of new room:", renameRoomPrompt: "New room name:",
+  deleteRoomConfirm: "Delete room «{name}»? Classes using it get a new, empty room.",
+  roomSwitchConfirm: "Switch this class to this room? Current seating/locks may be lost for seats that don't exist in the new room.",
+  mergeGroups: "Merge selected tables", splitGroups: "Split out selected seats",
+  mergeNeedTwo: "Select at least two table groups (Ctrl+click one seat in each) to merge them.",
+  splitNeedSelection: "Select seats (Ctrl+click) to split them into their own table group.",
 
   seatingRandom: "Random seating", seatingClear: "Clear seating", seatingSave: "Save seating to history",
   genderWeight: "Gender balance", genderNone2: "No gender weighting", genderUnlike: "Favor MIXED gender",
@@ -186,10 +217,15 @@ en: {
   settingsBlur: "Seat blur", settingsOpacity: "Seat transparency",
   settingsUiScale: "Interface size", settingsFontScale: "Text size",
   settingsReset: "Reset settings", settingsLang: "Language",
+  theme_lys: "Light", theme_mork: "Dark", theme_catppuccin_mocha: "Catppuccin (dark)", theme_catppuccin_latte: "Catppuccin (light)",
+  settingsTheme: "Theme", settingsSeatSize: "Seat size", seatSizeAuto: "Automatic (by name)",
+  settingsExport: "Included in image", exportDateLbl: "Date", exportTimeLbl: "Time",
+  exportWeekLbl: "Week number", exportClassNameLbl: "Class name", weekShort: "week",
+  poolPanelTitle: "Students", infoPanelTitle: "History", expandPanel: "Show", collapsePanel: "Hide",
 
   plassRad: "row", plassKol: "col", zoneFramme: "Front", zoneBak: "Back", zoneVindauge: "Window",
   confirm: "Apply", cancel: "Cancel", save: "Save", close: "Close", add: "Add", remove: "Remove",
-  gender: "Gender", seatInGroup: "Table group with {n} seats", boardLabel: "BOARD",
+  gender: "Gender", seatInGroup: "Table group with {n} seats", boardLabel: "BOARD", roomTotalSeats: "{n} seats total",
 },
 };
 
