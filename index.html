@@ -14,6 +14,9 @@
     <select id="classSelect"></select>
   </div>
   <div class="spacer"></div>
+  <a href="https://ko-fi.com/H4Y525OAYW" target="_blank" rel="noopener" class="kofi-link" title="Kjøp meg ein kaffi!">
+    <span class="kofi-cup">&#9749;</span> <span data-i18n="kofiShort">Kjøp meg ein kaffi!</span>
+  </a>
   <div class="lang-switch">
     <button data-lang="nn">NN</button>
     <button data-lang="nb">NB</button>
@@ -254,8 +257,12 @@
       <h2 data-i18n="settingsFeedback">Tilbakemelding</h2>
       <p class="hint" data-i18n="settingsFeedbackHelp">Har du forslag, spørsmål eller har funne ein feil?</p>
       <button id="btnFeedback" data-i18n="sendFeedback">Send tilbakemelding på e-post</button>
-      <p class="hint" style="margin-top:1rem" data-i18n="kofiText">Liker du produktet? Kjøp meg gjerne ein kaffi.</p>
-      <div id="kofiContainer"></div>
+      <div class="kofi-block">
+        <p class="hint" data-i18n="kofiText">Liker du produktet? Kjøp meg gjerne ein kaffi.</p>
+        <a href="https://ko-fi.com/H4Y525OAYW" target="_blank" rel="noopener" class="kofi-button-settings">
+          <img src="https://storage.ko-fi.com/cdn/kofi6.png?v=6" alt="Buy Me a Coffee at ko-fi.com" height="36">
+        </a>
+      </div>
     </div>
 
     <div class="panel" style="border-color:#ef4444">
@@ -274,12 +281,5 @@
 <script src="core.js"></script>
 <script src="i18n.js"></script>
 <script src="app.js"></script>
-<script src="https://storage.ko-fi.com/cdn/widget/Widget_2.js"></script>
-<script>
-  if (typeof kofiwidget2 !== 'undefined') {
-    kofiwidget2.init('Kjøp meg ein kaffi!', '#72a4f2', 'H4Y525OAYW');
-    kofiwidget2.draw();
-  }
-</script>
 </body>
 </html>

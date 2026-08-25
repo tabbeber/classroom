@@ -45,6 +45,18 @@ header.topbar h1 { font-size: 1.05rem; margin: 0; font-weight: 600; flex: 0 0 au
   background: rgba(255,255,255,.12); color: white; border: 1px solid rgba(255,255,255,.25);
 }
 .lang-switch button.active { background: var(--accent); border-color: var(--accent); }
+.kofi-link {
+  display: flex; align-items: center; gap: .35rem; color: white; text-decoration: none;
+  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25);
+  padding: .35rem .7rem; border-radius: var(--radius); font-size: calc(.85rem * var(--ui-scale));
+  margin-right: .6rem; white-space: nowrap;
+}
+.kofi-link:hover { background: rgba(255,255,255,.22); }
+.kofi-cup { font-size: 1rem; line-height: 1; }
+.kofi-button-settings { display: inline-block; margin-top: .3rem; }
+.kofi-button-settings img { display: block; border-radius: 6px; }
+.kofi-block { display: block; margin-top: 1rem; }
+.kofi-block p { display: block; margin: 0 0 .4rem; }
 /* Språkbyte inni Innstillingar-panelet ligg på panel-bakgrunn, ikkje header -
    må difor følgje temaet i staden for å alltid vere kvit tekst. */
 #langSwitchSettings button {
