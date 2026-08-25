@@ -16,7 +16,7 @@ const App = {
   multiSelected: new Set(), armedStudent: null,
   drag: null, ctxMenu: null,
   roomDirty: false,
-  heatmapStudent: null, heatmapData: null,
+  heatmapEnabled: false, heatmapData: null,
 };
 
 // -- Tekstmåling og layout-utrekning --
@@ -82,7 +82,7 @@ function buildSeatEl(sid, mode, w, h, repeatWarn, blWarn) {
   el.style.width = w + 'px'; el.style.height = h + 'px';
   el.dataset.sid = sid;
 
-  if (mode === 'seating' && App.heatmapStudent && App.heatmapData && App.heatmapData[sid]) {
+  if (mode === 'seating' && App.heatmapData && App.heatmapData[sid]) {
     const { count, recency } = App.heatmapData[sid];
     const hue = 120 * (1 - recency); // 120=grøn (lenge sidan), 0=raud (nyleg)
     const opacity = Math.min(0.85, 0.28 + count * 0.14);
@@ -114,12 +114,18 @@ const _seatElCache = { roomCanvasA: {}, roomCanvasB: {} };
 const _boardElCache = {};
 const _groupFrameCache = { roomCanvasA: {}, roomCanvasB: {} };
 
+function currentHeatmapStudentName() {
+  if (App.selectedStudent) return App.selectedStudent;
+  if (App.selectedSeat) return App.data.arrangement[App.selectedSeat] || null;
+  return null;
+}
 function renderRoom(containerId, mode, zoom) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
   _seatElCache[containerId] = {};
   const room = App.room, cls = App.data, { w: seatW, h: seatH } = computeSeatSize(cls.students);
-  App.heatmapData = (mode === 'seating' && App.heatmapStudent) ? seatHeatmapForStudent(room, cls, App.heatmapStudent) : null;
+  const heatName = (mode === 'seating' && App.heatmapEnabled) ? currentHeatmapStudentName() : null;
+  App.heatmapData = heatName ? seatHeatmapForStudent(room, cls, heatName) : null;
   const { positions, boardRect, totalW, totalH } = computeLayout(room, seatW, seatH);
   container.style.width = (totalW * zoom) + 'px'; container.style.height = (totalH * zoom) + 'px';
 
@@ -778,17 +784,14 @@ function renderStudentHistory(panel, name, showHeader) {
   const zh = zoneHistoryFor(room, cls, name);
   panel.innerHTML += `<p><b>${t('zonesHistory')}</b></p>`;
   for (const z of ZONES) panel.innerHTML += `<span class="zone-chip" style="background:${ZONE_COLORS[z]}">${t('zone' + z[0].toUpperCase() + z.slice(1))}: ${zh[z] || 0}</span>`;
-  panel.innerHTML += `<label class="row" style="margin-top:.6rem">
-    <input type="checkbox" id="heatmapToggle" ${App.heatmapStudent === name ? 'checked' : ''}> ${t('showHeatmap')}</label>
-    <p class="hint">${t('heatmapHint')}</p>`;
-  panel.querySelector('#heatmapToggle').onchange = e => {
-    App.heatmapStudent = e.target.checked ? name : null;
-    renderAllRoomViews();
-  };
 }
 function renderInfoPanel() {
   const panel = document.getElementById('infoPanel');
-  panel.innerHTML = '';
+  panel.innerHTML = `<div class="heatmap-toggle-box">
+    <label class="row"><input type="checkbox" id="heatmapToggle" ${App.heatmapEnabled ? 'checked' : ''}> ${t('showHeatmap')}</label>
+    <p class="hint">${t('heatmapHint')}</p>
+  </div>`;
+
   const room = App.room, cls = App.data;
   if (App.selectedSeat) {
     const sid = App.selectedSeat, student = cls.arrangement[sid], zones = zonesFor(room, sid), locked = !!cls.locked[sid];
@@ -800,8 +803,9 @@ function renderInfoPanel() {
   } else if (App.selectedStudent) {
     renderStudentHistory(panel, App.selectedStudent, true);
   } else {
-    panel.innerHTML = `<p class="hint">${t('historyEmptyHint')}</p>`;
+    panel.innerHTML += `<p class="hint">${t('historyEmptyHint')}</p>`;
   }
+  panel.querySelector('#heatmapToggle').onchange = e => { App.heatmapEnabled = e.target.checked; renderAllRoomViews(); };
 }
 
 // -- Klasse-fane: klassar, elevar+kjønn (samla), svarteliste --
@@ -901,7 +905,7 @@ function switchClass(id) {
   App.data = Store.loadClass(id) || newClassData();
   loadRoomForCurrentClass();
   App.selectedSeat = null; App.selectedStudent = null; App.multiSelected = new Set(); App.armedStudent = null;
-  App.roomDirty = false; updateRoomDraftBar(); App.heatmapStudent = null;
+  App.roomDirty = false; updateRoomDraftBar();
   fillGenderModeSelect(); syncFlipButton();
   renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel();
   return true;
@@ -916,7 +920,7 @@ function switchRoom(id) {
   App.data.room_id = id;
   saveCurrentClass();
   App.selectedSeat = null; App.multiSelected = new Set();
-  App.roomDirty = false; updateRoomDraftBar(); App.heatmapStudent = null;
+  App.roomDirty = false; updateRoomDraftBar();
   syncFlipButton(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel();
   return true;
 }

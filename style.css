@@ -220,6 +220,7 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 .blacklist-box { background: #fee2e2; border: 1px solid #fca5a5; border-radius: calc(var(--radius)*.6); padding: .5rem; margin-bottom: .5rem; color: #7f1d1d; }
 .zone-chip { display: inline-block; color: white; font-weight: 700; border-radius: calc(var(--radius)*.4); padding: .15rem .4rem; margin-right: .3rem; font-size: calc(.8rem * var(--font-scale)); }
 .neighbour-row.now { color: #f87171; font-weight: 600; }
+.heatmap-toggle-box { border: 1px solid var(--panel-border); border-radius: calc(var(--radius)*.6); padding: .5rem; margin-bottom: .7rem; background: var(--row-bg); }
 
 /* -- Statistikk-tabell -- */
 table.stats { width: 100%; border-collapse: collapse; font-size: calc(.9rem * var(--font-scale)); }
