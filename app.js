@@ -15,6 +15,8 @@ const App = {
   selectedSeat: null, selectedStudent: null,
   multiSelected: new Set(), armedStudent: null,
   drag: null, ctxMenu: null,
+  roomDirty: false,
+  heatmapStudent: null, heatmapData: null,
 };
 
 // -- Tekstmåling og layout-utrekning --
@@ -80,6 +82,13 @@ function buildSeatEl(sid, mode, w, h, repeatWarn, blWarn) {
   el.style.width = w + 'px'; el.style.height = h + 'px';
   el.dataset.sid = sid;
 
+  if (mode === 'seating' && App.heatmapStudent && App.heatmapData && App.heatmapData[sid]) {
+    const { count, recency } = App.heatmapData[sid];
+    const hue = 120 * (1 - recency); // 120=grøn (lenge sidan), 0=raud (nyleg)
+    const opacity = Math.min(0.85, 0.28 + count * 0.14);
+    el.style.boxShadow = `inset 0 0 0 999px hsla(${hue}, 75%, 50%, ${opacity})`;
+  }
+
   const top = document.createElement('div'); top.className = 'top-row';
   for (const z of zones) {
     const b = document.createElement('span'); b.className = 'zone-badge';
@@ -110,6 +119,7 @@ function renderRoom(containerId, mode, zoom) {
   container.innerHTML = '';
   _seatElCache[containerId] = {};
   const room = App.room, cls = App.data, { w: seatW, h: seatH } = computeSeatSize(cls.students);
+  App.heatmapData = (mode === 'seating' && App.heatmapStudent) ? seatHeatmapForStudent(room, cls, App.heatmapStudent) : null;
   const { positions, boardRect, totalW, totalH } = computeLayout(room, seatW, seatH);
   container.style.width = (totalW * zoom) + 'px'; container.style.height = (totalH * zoom) + 'px';
 
@@ -254,7 +264,7 @@ function onSeatPointerUp(e) {
   if (drag.longPressTriggered) return; // halde-inne har alt gjort jobben
 
   if (drag.kind === 'group') {
-    if (drag.dragging) { saveCurrentRoom(); renderAllRoomViews(); }
+    if (drag.dragging) { markRoomDirty(); renderAllRoomViews(); }
     else if (App.multiSelected.size > 0) { toggleMultiSelect(drag.sid); }
     else { App.selectedSeat = drag.sid; renderAllRoomViews(); }
     return;
@@ -369,12 +379,12 @@ function onDocMouseDownCloseMenu(e) {
   document.removeEventListener('mousedown', onDocMouseDownCloseMenu);
   closeContextMenu();
 }
-function openSeatContextMenu(e, sid) {
-  closeContextMenu();
-  const room = App.room, cls = App.data, menu = document.createElement('div');
-  menu.className = 'panel';
-  Object.assign(menu.style, { position: 'fixed', left: e.clientX + 'px', top: e.clientY + 'px', zIndex: 200, minWidth: '230px', padding: '.3rem' });
+function buildSeatMenuItems(sid) {
+  const room = App.room, cls = App.data;
   const items = [];
+  if (App.multiSelected.size > 0) {
+    items.push([t('clearSelection'), clearSelection]);
+  }
   if (App.multiSelected.size > 1 && App.multiSelected.has(sid)) {
     items.push([t('editZonesBulk', { n: App.multiSelected.size }), openBulkZonesModal]);
     if (groupsRepresentedBy(App.multiSelected).length > 1) items.push([t('mergeGroups'), doMergeSelectedGroups]);
@@ -388,11 +398,18 @@ function openSeatContextMenu(e, sid) {
   if (gid) {
     items.push([t('selectGroup'), () => { App.multiSelected = new Set(room.groups[gid].seats); renderAllRoomViews(); }]);
     if (room.groups[gid].seats.length > 1) {
-      items.push([t('splitThisSeat'), () => { splitSeatsOut(room, [sid]); saveCurrentRoom(); renderAllRoomViews(); }]);
+      items.push([t('splitThisSeat'), () => { splitSeatsOut(room, [sid]); markRoomDirty(); renderAllRoomViews(); }]);
     }
     items.push([t('editGroup'), () => openEditGroupModal(gid)]);
-    items.push([t('removeGroupBtn'), () => { if (confirm(t('confirmRemoveGroup'))) { removeGroup(room, cls, gid); saveCurrentRoom(); saveCurrentClass(); renderAllRoomViews(); renderPool(); } }]);
+    items.push([t('removeGroupBtn'), () => { if (confirm(t('confirmRemoveGroup'))) { removeGroup(room, null, gid); markRoomDirty(); renderAllRoomViews(); renderPool(); } }]);
   }
+  return items;
+}
+function showMenuAt(x, y, items) {
+  closeContextMenu();
+  const menu = document.createElement('div');
+  menu.className = 'panel';
+  Object.assign(menu.style, { position: 'fixed', left: x + 'px', top: y + 'px', zIndex: 200, minWidth: '230px', padding: '.3rem' });
   for (const [label, fn] of items) {
     const b = document.createElement('button'); b.textContent = label;
     Object.assign(b.style, { display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', borderRadius: '6px' });
@@ -401,7 +418,30 @@ function openSeatContextMenu(e, sid) {
     menu.appendChild(b);
   }
   document.body.appendChild(menu); App.ctxMenu = menu;
+  // hald menyen innanfor vindauget
+  const r = menu.getBoundingClientRect();
+  if (r.right > window.innerWidth) menu.style.left = Math.max(4, window.innerWidth - r.width - 4) + 'px';
+  if (r.bottom > window.innerHeight) menu.style.top = Math.max(4, window.innerHeight - r.height - 4) + 'px';
   setTimeout(() => document.addEventListener('mousedown', onDocMouseDownCloseMenu), 0);
+}
+function openSeatContextMenu(e, sid) {
+  App.selectedSeat = sid;
+  showMenuAt(e.clientX, e.clientY, buildSeatMenuItems(sid));
+}
+// Opnar same meny via ein knapp i verktøylinja (touch-vennleg, treng ikkje
+// høgreklikk/halde-inne). Verkar på det som alt er valt: fleire-val vinn,
+// elles einskild valt plass.
+function openMenuForSelection() {
+  const sid = App.multiSelected.size ? [...App.multiSelected][0] : App.selectedSeat;
+  if (!sid) { setStatus(t('noSelectionHint')); return; }
+  const btn = document.getElementById('btnSeatMenu');
+  const r = btn.getBoundingClientRect();
+  showMenuAt(r.left, r.bottom + 4, buildSeatMenuItems(sid));
+}
+function clearSelection() {
+  App.multiSelected = new Set();
+  App.selectedSeat = null;
+  renderAllRoomViews(); renderInfoPanel();
 }
 
 // -- Slå saman / skil ut bordgrupper (multi-val) --
@@ -415,14 +455,14 @@ function doMergeSelectedGroups() {
   if (gids.length < 2) { alert(t('mergeNeedTwo')); return; }
   mergeGroups(App.room, App.data, gids);
   App.multiSelected = new Set();
-  saveCurrentRoom(); saveCurrentClass(); renderAllRoomViews();
+  markRoomDirty(); renderAllRoomViews();
 }
 function doSplitSelectedSeats() {
   const sids = [...App.multiSelected];
   if (!sids.length) { alert(t('splitNeedSelection')); return; }
   splitSeatsOut(App.room, sids);
   App.multiSelected = new Set();
-  saveCurrentRoom(); renderAllRoomViews();
+  markRoomDirty(); renderAllRoomViews();
 }
 
 // -- Modal-dialogar (generisk) --
@@ -448,7 +488,7 @@ function openEditZonesModal(sid) {
     const zones = [...modal.querySelectorAll('input[data-z]')].filter(c => c.checked).map(c => c.dataset.z);
     if (zones.length) room.seat_zones[sid] = zones; else delete room.seat_zones[sid];
     cls.locked[sid] = modal.querySelector('#ezLock').checked;
-    saveCurrentRoom(); saveCurrentClass(); closeModal(); renderAllRoomViews();
+    saveCurrentClass(); markRoomDirty(); closeModal(); renderAllRoomViews();
   };
 }
 function openBulkZonesModal() {
@@ -461,7 +501,7 @@ function openBulkZonesModal() {
   modal.querySelector('#bzOk').onclick = () => {
     const zones = [...modal.querySelectorAll('input[data-z]')].filter(c => c.checked).map(c => c.dataset.z);
     for (const sid of sids) { if (zones.length) App.room.seat_zones[sid] = [...zones]; else delete App.room.seat_zones[sid]; }
-    saveCurrentRoom(); closeModal(); App.multiSelected = new Set(); renderAllRoomViews();
+    markRoomDirty(); closeModal(); App.multiSelected = new Set(); renderAllRoomViews();
   };
 }
 function openAddGroupModal() {
@@ -478,7 +518,7 @@ function openAddGroupModal() {
     const perRow = 4, stepX = seatW * 2 + GROUP_GAP, stepY = seatH * 2 + GROUP_GAP;
     const x = 20 + (count % perRow) * stepX, y = 20 + Math.floor(count / perRow) * stepY;
     addGroup(App.room, x, y, n, cols);
-    saveCurrentRoom(); closeModal(); renderAllRoomViews();
+    markRoomDirty(); closeModal(); renderAllRoomViews();
   };
 }
 function openEditGroupModal(gid) {
@@ -489,10 +529,10 @@ function openEditGroupModal(gid) {
     <div class="row"><label>${t('seatsPerRow')}</label><input type="number" id="egCols" value="${g.cols}" min="1" max="6"></div>
     <div class="actions"><button id="egRemove" class="danger">${t('removeGroupBtn')}</button><button id="egCancel">${t('cancel')}</button><button id="egOk" class="primary">${t('save')}</button></div>`);
   modal.querySelector('#egCancel').onclick = closeModal;
-  modal.querySelector('#egRemove').onclick = () => { if (confirm(t('confirmRemoveGroup'))) { removeGroup(App.room, App.data, gid); saveCurrentRoom(); saveCurrentClass(); closeModal(); renderAllRoomViews(); renderPool(); } };
+  modal.querySelector('#egRemove').onclick = () => { if (confirm(t('confirmRemoveGroup'))) { removeGroup(App.room, null, gid); markRoomDirty(); closeModal(); renderAllRoomViews(); renderPool(); } };
   modal.querySelector('#egOk').onclick = () => {
-    resizeGroup(App.room, App.data, gid, parseInt(modal.querySelector('#egSeats').value) || 1, parseInt(modal.querySelector('#egCols').value) || 1);
-    saveCurrentRoom(); saveCurrentClass(); closeModal(); renderAllRoomViews();
+    resizeGroup(App.room, null, gid, parseInt(modal.querySelector('#egSeats').value) || 1, parseInt(modal.querySelector('#egCols').value) || 1);
+    markRoomDirty(); closeModal(); renderAllRoomViews();
   };
 }
 function openQuickGridModal() {
@@ -552,8 +592,7 @@ function openQuickGridModal() {
       if ((win === 'hoyre' || win === 'begge') && tc === cols - 1 && !zones.includes('vindauge')) zones.push('vindauge');
       if (zones.length) for (const sid of r.groups[gid].seats) r.seat_zones[sid] = zones;
     }
-    ensureConsistency(r, App.data);
-    saveCurrentRoom(); saveCurrentClass(); closeModal(); renderAllRoomViews(); renderPool();
+    markRoomDirty(); closeModal(); renderAllRoomViews(); renderPool();
   };
 }
 function openFullHistoryModal() {
@@ -613,11 +652,15 @@ function exportTitleLine() {
   return parts.length ? `${t('appTitle')} \u2013 ${parts.join(' \u00b7 ')}` : t('appTitle');
 }
 
-async function exportImage() {
+// Teiknar eit reint bilete av plasseringa (berre tavle, plassar og namn -
+// ingen soner, lås eller åtvaringar) til eit gjeve canvas. `flipped` er
+// uavhengig av romet sitt gjeldande view_flipped, slik at førehandsvising
+// kan snuast utan å påverke sjølve romet.
+async function drawSeatingChart(canvas, flipped) {
   const room = App.room, cls = App.data, { w: seatW, h: seatH } = computeSeatSize(cls.students);
-  const { positions, boardRect, totalW, totalH } = computeLayout(room, seatW, seatH);
+  const layoutRoom = { groups: room.groups, view_flipped: flipped };
+  const { positions, boardRect, totalW, totalH } = computeLayout(layoutRoom, seatW, seatH);
   const titleH = 40;
-  const canvas = document.createElement('canvas');
   canvas.width = totalW; canvas.height = totalH + titleH;
   const ctx = canvas.getContext('2d');
 
@@ -651,35 +694,42 @@ async function exportImage() {
   ctx.fillStyle = 'white'; ctx.font = 'bold 12px "Segoe UI"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(t('boardLabel'), bx + bw / 2, by + BOARD_H / 2);
 
-  const repeatWarn = repeatNeighbourSeats(room, cls, cls.arrangement), blWarn = blacklistViolationSeats(room, cls, cls.arrangement);
   for (const g of Object.values(room.groups)) for (const sid of g.seats) {
     if (!positions[sid]) continue;
     const [px, py0] = positions[sid], py = py0 + titleH;
-    const student = cls.arrangement[sid], locked = !!cls.locked[sid], zones = zonesFor(room, sid);
+    const student = cls.arrangement[sid];
     roundRect(ctx, px, py, seatW, seatH, 8); ctx.fillStyle = panelBg; ctx.fill();
-    ctx.strokeStyle = locked ? '#9ca3af' : panelBorder; ctx.lineWidth = 2; ctx.stroke();
-    let zx = px + 6;
-    for (const z of zones) {
-      roundRect(ctx, zx, py + 6, 16, 14, 2); ctx.fillStyle = ZONE_COLORS[z]; ctx.fill();
-      ctx.fillStyle = 'white'; ctx.font = 'bold 8px "Segoe UI"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(z[0].toUpperCase(), zx + 8, py + 13); zx += 20;
-    }
-    if (locked) { ctx.fillStyle = '#9ca3af'; ctx.font = 'bold 8px "Segoe UI"'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(t('locked'), px + seatW - 6, py + 13); }
+    ctx.strokeStyle = panelBorder; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = student ? ink : muted; ctx.font = (student ? 'bold ' : '') + '13px "Segoe UI"';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     wrapText(ctx, student || t('empty'), px + seatW / 2, py + seatH / 2, seatW - 12, 17);
-    const hits = blWarn[sid];
-    if (hits) {
-      ctx.fillStyle = '#fecaca'; ctx.fillRect(px, py + seatH - 16, seatW, 16);
-      ctx.fillStyle = '#7f1d1d'; ctx.font = 'bold 7px "Segoe UI"';
-      ctx.fillText(t('blacklistWarn', { names: hits.join(', ') }), px + seatW / 2, py + seatH - 8);
-    } else if (repeatWarn[sid]) {
-      ctx.fillStyle = '#fee2e2'; ctx.fillRect(px, py + seatH - 16, seatW, 16);
-      ctx.fillStyle = '#b91c1c'; ctx.font = 'bold 7px "Segoe UI"';
-      ctx.fillText(t('obsWarn'), px + seatW / 2, py + seatH - 8);
-    }
   }
+}
+async function exportImage() {
+  const canvas = document.createElement('canvas');
+  await drawSeatingChart(canvas, App.room.view_flipped);
   downloadDataUrl(canvas.toDataURL('image/png'), 'klasseromplassering.png');
+}
+async function openImagePreviewModal() {
+  let flipped = App.room.view_flipped;
+  const modal = openModal(`
+    <h2>${t('previewTitle')}</h2>
+    <div class="row" style="margin-bottom:.6rem">
+      <button id="pvFlip">${t('previewFlip')}</button>
+      <button id="pvDownload" class="primary">${t('exportImage')}</button>
+      <span class="spacer"></span>
+      <button id="pvClose">${t('close')}</button>
+    </div>
+    <div id="pvCanvasWrap" style="max-height:75vh; overflow:auto; border:1px solid var(--panel-border); border-radius:8px; text-align:center;">
+      <canvas id="pvCanvas" style="max-width:100%; height:auto; display:inline-block;"></canvas>
+    </div>`);
+  modal.style.maxWidth = '92vw';
+  const canvas = modal.querySelector('#pvCanvas');
+  const redraw = async () => { await drawSeatingChart(canvas, flipped); };
+  await redraw();
+  modal.querySelector('#pvFlip').onclick = async () => { flipped = !flipped; await redraw(); };
+  modal.querySelector('#pvDownload').onclick = () => downloadDataUrl(canvas.toDataURL('image/png'), 'klasseromplassering.png');
+  modal.querySelector('#pvClose').onclick = closeModal;
 }
 function exportText() {
   const room = App.room, cls = App.data;
@@ -728,6 +778,13 @@ function renderStudentHistory(panel, name, showHeader) {
   const zh = zoneHistoryFor(room, cls, name);
   panel.innerHTML += `<p><b>${t('zonesHistory')}</b></p>`;
   for (const z of ZONES) panel.innerHTML += `<span class="zone-chip" style="background:${ZONE_COLORS[z]}">${t('zone' + z[0].toUpperCase() + z.slice(1))}: ${zh[z] || 0}</span>`;
+  panel.innerHTML += `<label class="row" style="margin-top:.6rem">
+    <input type="checkbox" id="heatmapToggle" ${App.heatmapStudent === name ? 'checked' : ''}> ${t('showHeatmap')}</label>
+    <p class="hint">${t('heatmapHint')}</p>`;
+  panel.querySelector('#heatmapToggle').onchange = e => {
+    App.heatmapStudent = e.target.checked ? name : null;
+    renderAllRoomViews();
+  };
 }
 function renderInfoPanel() {
   const panel = document.getElementById('infoPanel');
@@ -819,7 +876,11 @@ function renderRoomTab() {
 }
 
 // -- Klasse-/rom-bytte og sjølvlækjande rom-tilknyting --
-function syncFlipButton() { document.getElementById('btnFlipRoom').classList.toggle('active', App.room.view_flipped); }
+function syncFlipButton() {
+  const btn = document.getElementById('btnFlipRoom');
+  btn.classList.toggle('active', App.room.view_flipped);
+  btn.textContent = App.room.view_flipped ? t('roomToolbarFlipToTop') : t('roomToolbarFlipToBottom');
+}
 function loadRoomForCurrentClass() {
   let roomId = App.data.room_id;
   let room = roomId ? Store.loadRoom(roomId) : null;
@@ -835,26 +896,68 @@ function loadRoomForCurrentClass() {
   App.roomId = roomId; App.room = room;
 }
 function switchClass(id) {
+  if (!confirmLeaveRoomDraft()) return false;
   App.classId = id;
   App.data = Store.loadClass(id) || newClassData();
   loadRoomForCurrentClass();
   App.selectedSeat = null; App.selectedStudent = null; App.multiSelected = new Set(); App.armedStudent = null;
+  App.roomDirty = false; updateRoomDraftBar(); App.heatmapStudent = null;
   fillGenderModeSelect(); syncFlipButton();
   renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel();
+  return true;
 }
 function switchRoom(id) {
+  if (!confirmLeaveRoomDraft()) return false;
   const room = Store.loadRoom(id);
-  if (!room) return;
+  if (!room) return false;
   archiveCurrentRoomState(App.data);
   restoreRoomState(App.data, id);
   App.roomId = id; App.room = room;
   App.data.room_id = id;
   saveCurrentClass();
   App.selectedSeat = null; App.multiSelected = new Set();
+  App.roomDirty = false; updateRoomDraftBar(); App.heatmapStudent = null;
   syncFlipButton(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel();
+  return true;
 }
 function saveCurrentClass() { if (App.classId) Store.saveClass(App.classId, App.data); }
 function saveCurrentRoom() { if (App.roomId) Store.saveRoom(App.roomId, App.room); }
+
+// -- Romutkast: endringar i romoppsettet (bordgrupper/soner/vend visning) er
+// mellombelse til dei uttrykkeleg vert lagra eller forkasta. Låsing/tømming
+// av plassar og elevplassering er derimot alltid umiddelbart lagra (dette er
+// klasse-tilstand, ikkje romet sitt utsjånad).
+function markRoomDirty() {
+  App.roomDirty = true;
+  updateRoomDraftBar();
+}
+function updateRoomDraftBar() {
+  const bar = document.getElementById('roomDraftBar');
+  if (bar) bar.classList.toggle('show', App.roomDirty);
+}
+function saveRoomDraft() {
+  saveCurrentRoom();
+  ensureConsistency(App.room, App.data);
+  saveCurrentClass();
+  App.roomDirty = false;
+  updateRoomDraftBar();
+  renderAllRoomViews(); renderPool(); renderInfoPanel();
+  setStatus(t('roomChangesSaved'));
+}
+function discardRoomDraft() {
+  App.room = Store.loadRoom(App.roomId) || newRoomData();
+  ensureConsistency(App.room, App.data);
+  saveCurrentClass();
+  App.selectedSeat = null; App.multiSelected = new Set();
+  App.roomDirty = false;
+  syncFlipButton(); updateRoomDraftBar();
+  renderAllRoomViews(); renderPool(); renderInfoPanel();
+  setStatus(t('roomChangesDiscarded'));
+}
+function confirmLeaveRoomDraft() {
+  if (!App.roomDirty) return true;
+  return confirm(t('confirmDiscardRoomDraft'));
+}
 
 // -- Status og div. --
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -944,10 +1047,20 @@ function renderSettingsTab() {
 function toggleSidePanel(el, key) {
   const collapsed = el.classList.toggle('collapsed');
   App.settings[key] = collapsed; Store.saveSettings(App.settings);
+  updateCollapseIcon(el);
+}
+function updateCollapseIcon(el) {
+  const btn = el.querySelector('.collapse-btn');
+  const collapsed = el.classList.contains('collapsed');
+  const isLeftPanel = el.id === 'poolPanel'; // ligg til venstre - utvidar mot høgre
+  btn.textContent = collapsed ? (isLeftPanel ? '\u25B6' : '\u25C0') : (isLeftPanel ? '\u25C0' : '\u25B6');
+  btn.title = collapsed ? t('expandPanel') : t('collapsePanel');
 }
 function applyPanelCollapseState() {
-  document.getElementById('poolPanel').classList.toggle('collapsed', !!App.settings.poolCollapsed);
-  document.getElementById('infoPanelWrap').classList.toggle('collapsed', !!App.settings.infoCollapsed);
+  const pool = document.getElementById('poolPanel'), info = document.getElementById('infoPanelWrap');
+  pool.classList.toggle('collapsed', !!App.settings.poolCollapsed);
+  info.classList.toggle('collapsed', !!App.settings.infoCollapsed);
+  updateCollapseIcon(pool); updateCollapseIcon(info);
 }
 
 // -- Språk --
@@ -958,6 +1071,7 @@ function applyStaticTranslations() {
 }
 function refreshDynamicTexts() {
   fillGenderModeSelect(); renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderSettingsTab();
+  syncFlipButton(); applyPanelCollapseState();
 }
 function wireLangButtons() {
   document.querySelectorAll('[data-lang]').forEach(btn => btn.onclick = () => { setLang(btn.dataset.lang); applyStaticTranslations(); refreshDynamicTexts(); });
@@ -969,7 +1083,9 @@ function wireEvents() {
 
   // -- Klasse-fane --
   document.getElementById('btnNewClass').onclick = () => {
+    if (!confirmLeaveRoomDraft()) return;
     const name = prompt(t('newClassPrompt'), t('newClass')); if (!name) return;
+    App.roomDirty = false;
     switchClass(Store.createClass(name, null)); renderClassTab();
   };
   document.getElementById('btnRenameClass').onclick = () => {
@@ -978,6 +1094,8 @@ function wireEvents() {
     Store.renameClass(App.classId, name); renderClassTab();
   };
   document.getElementById('btnDuplicateClass').onclick = () => {
+    if (!confirmLeaveRoomDraft()) return;
+    App.roomDirty = false;
     const cur = Store.listClasses().find(c => c.id === App.classId);
     const id = Store.createClass((cur ? cur.name : 'Klasse') + ' (kopi)', App.data.room_id);
     const copy = JSON.parse(JSON.stringify(App.data));
@@ -986,7 +1104,9 @@ function wireEvents() {
   };
   document.getElementById('btnDeleteClass').onclick = () => {
     const cur = Store.listClasses().find(c => c.id === App.classId); if (!cur) return;
+    if (!confirmLeaveRoomDraft()) return;
     if (!confirm(t('deleteClassConfirm', { name: cur.name }))) return;
+    App.roomDirty = false;
     Store.deleteClass(App.classId);
     const next = Store.getDefaultId();
     if (next) switchClass(next); else { const id = Store.createClass(t('newClass'), null); Store.setDefaultId(id); switchClass(id); }
@@ -1014,7 +1134,9 @@ function wireEvents() {
     } catch (err) { alert('Feil: ' + err.message); }
     e.target.value = '';
   };
-  document.getElementById('classSelect').onchange = e => { switchClass(e.target.value); renderClassTab(); };
+  document.getElementById('classSelect').onchange = e => {
+    if (switchClass(e.target.value)) renderClassTab(); else document.getElementById('classSelect').value = App.classId;
+  };
 
   document.getElementById('btnSaveStudents').onclick = () => {
     const raw = document.getElementById('studentsText').value.split('\n');
@@ -1037,8 +1159,7 @@ function wireEvents() {
 
   // -- Klasserom-fane: rom-styring --
   document.getElementById('roomSelect').onchange = e => {
-    if (!confirm(t('roomSwitchConfirm'))) { document.getElementById('roomSelect').value = App.roomId; return; }
-    switchRoom(e.target.value);
+    if (!switchRoom(e.target.value)) document.getElementById('roomSelect').value = App.roomId;
   };
   document.getElementById('btnNewRoom').onclick = () => {
     const name = prompt(t('newRoomPrompt'), t('newRoom')); if (!name) return;
@@ -1067,16 +1188,26 @@ function wireEvents() {
       if (cd && cd.room_states && cd.room_states[deletedId]) { delete cd.room_states[deletedId]; Store.saveClass(c.id, cd); }
     }
     delete App.data.room_states[deletedId];
-    loadRoomForCurrentClass(); syncFlipButton(); renderRoomTab(); renderAllRoomViews(); renderPool();
+    App.roomDirty = false;
+    loadRoomForCurrentClass(); syncFlipButton(); updateRoomDraftBar(); renderRoomTab(); renderAllRoomViews(); renderPool();
   };
   document.getElementById('btnAddGroup').onclick = openAddGroupModal;
   document.getElementById('btnQuickGrid').onclick = openQuickGridModal;
+  document.getElementById('btnSeatMenu').onclick = openMenuForSelection;
   document.getElementById('btnBulkZones').onclick = openBulkZonesModal;
+  document.getElementById('btnClearSelection').onclick = clearSelection;
+  document.getElementById('btnAutoFrontBack').onclick = () => {
+    autoTagFrontBack(App.room);
+    markRoomDirty();
+    renderAllRoomViews();
+  };
   document.getElementById('btnMergeGroups').onclick = doMergeSelectedGroups;
   document.getElementById('btnSplitGroups').onclick = doSplitSelectedSeats;
+  document.getElementById('btnSaveRoomDraft').onclick = saveRoomDraft;
+  document.getElementById('btnDiscardRoomDraft').onclick = discardRoomDraft;
   document.getElementById('btnFlipRoom').onclick = () => {
     App.room.view_flipped = !App.room.view_flipped;
-    syncFlipButton(); saveCurrentRoom(); renderAllRoomViews();
+    syncFlipButton(); markRoomDirty(); renderAllRoomViews();
   };
   document.getElementById('zoomInRoom').onclick = () => { App.zoomRoom = clampZoom(App.zoomRoom + .1); updateZoomLabel('Room'); renderRoom('roomCanvasA', 'layout', App.zoomRoom); };
   document.getElementById('zoomOutRoom').onclick = () => { App.zoomRoom = clampZoom(App.zoomRoom - .1); updateZoomLabel('Room'); renderRoom('roomCanvasA', 'layout', App.zoomRoom); };
@@ -1116,6 +1247,7 @@ function wireEvents() {
   document.getElementById('genderModeSelect').onchange = e => { App.data.gender_weight_mode = e.target.value; saveCurrentClass(); };
   document.getElementById('poolSearch').oninput = renderPool;
   document.getElementById('btnFullHistory').onclick = openFullHistoryModal;
+  document.getElementById('btnPreviewImage').onclick = openImagePreviewModal;
   document.getElementById('btnExportImage').onclick = exportImage;
   document.getElementById('btnExportText').onclick = exportText;
   document.getElementById('poolCollapseBtn').onclick = () => toggleSidePanel(document.getElementById('poolPanel'), 'poolCollapsed');
@@ -1159,6 +1291,19 @@ function wireEvents() {
   };
   document.getElementById('btnRemoveBg').onclick = () => { App.settings.bgImage = null; Store.saveSettings(App.settings); applySettings(App.settings); renderSettingsTab(); };
   document.getElementById('btnResetSettings').onclick = () => { App.settings = defaultSettings(); Store.saveSettings(App.settings); applySettings(App.settings); renderSettingsTab(); applyPanelCollapseState(); };
+  document.getElementById('btnFeedback').onclick = () => {
+    const subject = encodeURIComponent(t('appTitle') + ' - tilbakemelding');
+    window.location.href = `mailto:klasserom.strongly541@simplelogin.com?subject=${subject}`;
+  };
+  document.getElementById('btnResetAll').onclick = openResetAllModal;
+  document.getElementById('btnBackupDownload').onclick = downloadBackup;
+  document.getElementById('btnBackupImport').onclick = () => document.getElementById('backupFile').click();
+  document.getElementById('backupFile').onchange = async e => {
+    const file = e.target.files[0]; if (!file) return;
+    try { await openBackupImportModal(JSON.parse(await file.text())); }
+    catch (err) { alert(t('backupInvalid')); }
+    e.target.value = '';
+  };
 
   wireLangButtons();
   document.addEventListener('keydown', e => {
@@ -1173,6 +1318,97 @@ function switchTab(name) {
   document.querySelectorAll('.tabview').forEach(v => v.classList.toggle('active', v.id === 'tab-' + name));
 }
 
+// -- Nullstill alt (krev at brukaren skriv eit stadfestingsord - vernar mot uhell) --
+function openResetAllModal() {
+  const word = t('resetConfirmWord');
+  const modal = openModal(`
+    <h2 style="color:#ef4444">${t('resetConfirmTitle')}</h2>
+    <p>${t('resetConfirmText')}</p>
+    <p>${t('resetConfirmTypeHint')}</p>
+    <input type="text" id="resetConfirmInput" style="width:100%" autocomplete="off">
+    <div class="actions"><button id="resetCancel">${t('cancel')}</button><button id="resetOk" class="danger" disabled>${t('resetConfirmButton')}</button></div>`);
+  const input = modal.querySelector('#resetConfirmInput'), okBtn = modal.querySelector('#resetOk');
+  input.oninput = () => { okBtn.disabled = input.value.trim().toUpperCase() !== word; };
+  modal.querySelector('#resetCancel').onclick = closeModal;
+  okBtn.onclick = () => { localStorage.clear(); location.reload(); };
+  input.focus();
+}
+
+// -- Sikkerheitskopi: last ned alt, og importer valde delar frå ei fil --
+function gatherBackup() {
+  const idx = loadIndex(), roomIdx = loadRoomIndex();
+  const classes = {}, rooms = {};
+  for (const id of idx.order) { const c = Store.loadClass(id); if (c) classes[id] = { name: idx.names[id], data: c }; }
+  for (const id of roomIdx.order) { const r = Store.loadRoom(id); if (r) rooms[id] = { name: roomIdx.names[id], data: r }; }
+  return { type: 'krp-backup', version: 1, defaultClassId: idx.defaultId, classes, rooms, settings: App.settings };
+}
+function downloadBackup() {
+  const blob = new Blob([JSON.stringify(gatherBackup(), null, 2)], { type: 'application/json' });
+  downloadDataUrl(URL.createObjectURL(blob), 'klasseromplassering-backup.json');
+}
+async function openBackupImportModal(backup) {
+  if (!backup || backup.type !== 'krp-backup' || !backup.classes || !backup.rooms) { alert(t('backupInvalid')); return; }
+  const classEntries = Object.entries(backup.classes), roomEntries = Object.entries(backup.rooms);
+  const classRoomMap = {}; // klasse-id -> rom-id (i sikkerheitskopien) - for auto-avkryssing
+  for (const [id, c] of classEntries) classRoomMap[id] = c.data.room_id;
+
+  const classRows = classEntries.map(([id, c]) =>
+    `<label style="display:block"><input type="checkbox" class="bkClass" data-id="${id}" checked> ${escapeHtml(c.name)}</label>`).join('');
+  const roomRows = roomEntries.map(([id, r]) =>
+    `<label style="display:block"><input type="checkbox" class="bkRoom" data-id="${id}" checked> ${escapeHtml(r.name)}</label>`).join('');
+
+  const modal = openModal(`
+    <h2>${t('backupImportTitle')}</h2>
+    <p class="hint">${t('backupImportHelp')}</p>
+    <div class="row"><button id="bkAll">${t('backupSelectAll')}</button><button id="bkNone">${t('backupSelectNone')}</button></div>
+    <h3>${t('backupClasses')} (${classEntries.length})</h3>
+    <div style="max-height:180px; overflow:auto">${classRows || '<p class="hint">-</p>'}</div>
+    <h3>${t('backupRooms')} (${roomEntries.length})</h3>
+    <div style="max-height:180px; overflow:auto">${roomRows || '<p class="hint">-</p>'}</div>
+    <div class="actions"><button id="bkCancel">${t('cancel')}</button><button id="bkOk" class="primary">${t('backupImportConfirm')}</button></div>`);
+
+  modal.querySelectorAll('.bkClass').forEach(cb => cb.onchange = () => {
+    if (!cb.checked) return;
+    const roomId = classRoomMap[cb.dataset.id];
+    const roomCb = modal.querySelector(`.bkRoom[data-id="${roomId}"]`);
+    if (roomCb) roomCb.checked = true;
+  });
+  modal.querySelector('#bkAll').onclick = () => modal.querySelectorAll('.bkClass,.bkRoom').forEach(cb => cb.checked = true);
+  modal.querySelector('#bkNone').onclick = () => modal.querySelectorAll('.bkClass,.bkRoom').forEach(cb => cb.checked = false);
+  modal.querySelector('#bkCancel').onclick = closeModal;
+  modal.querySelector('#bkOk').onclick = () => {
+    const chosenClasses = [...modal.querySelectorAll('.bkClass:checked')].map(cb => cb.dataset.id);
+    const chosenRooms = [...modal.querySelectorAll('.bkRoom:checked')].map(cb => cb.dataset.id);
+    if (!chosenClasses.length && !chosenRooms.length) { alert(t('backupNoneSelected')); return; }
+
+    // rom først (klassar kan vise til dei), behald id om ledig, elles nytt
+    const roomIdMap = {};
+    for (const oldId of chosenRooms) {
+      const entry = backup.rooms[oldId];
+      const newRoomIdVal = Store.loadRoom(oldId) ? newId('r') : oldId;
+      Store.saveRoom(newRoomIdVal, entry.data);
+      const idx = loadRoomIndex(); idx.order.push(newRoomIdVal); idx.names[newRoomIdVal] = entry.name; saveRoomIndex(idx);
+      roomIdMap[oldId] = newRoomIdVal;
+    }
+    let lastImportedClassId = null;
+    for (const oldId of chosenClasses) {
+      const entry = backup.classes[oldId];
+      const cls = JSON.parse(JSON.stringify(entry.data));
+      if (cls.room_id && roomIdMap[cls.room_id]) cls.room_id = roomIdMap[cls.room_id];
+      else if (cls.room_id && !Store.loadRoom(cls.room_id)) cls.room_id = null; // romet vart ikkje valt/finst ikkje
+      const newClassIdVal = Store.loadClass(oldId) ? newId('c') : oldId;
+      Store.saveClass(newClassIdVal, cls);
+      const idx = loadIndex(); idx.order.push(newClassIdVal); idx.names[newClassIdVal] = entry.name; saveIndex(idx);
+      lastImportedClassId = newClassIdVal;
+    }
+    closeModal();
+    setStatus(t('backupDone'));
+    if (lastImportedClassId) switchClass(lastImportedClassId);
+    renderClassTab();
+  };
+}
+
+
 function init() {
   App.settings = Store.getSettings();
   applySettings(App.settings);
@@ -1185,5 +1421,9 @@ function init() {
   let defId = Store.getDefaultId();
   if (!defId) defId = Store.createClass(t('newClass'), null);
   switchClass(defId);
+
+  window.addEventListener('beforeunload', e => {
+    if (App.roomDirty) { e.preventDefault(); e.returnValue = ''; }
+  });
 }
 window.addEventListener('DOMContentLoaded', init);

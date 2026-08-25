@@ -89,17 +89,29 @@
     <div class="toolbar">
       <button id="btnAddGroup" class="primary" data-i18n="roomToolbarAdd">+ Bordgruppe</button>
       <button id="btnQuickGrid" data-i18n="roomToolbarGrid">Lag rutenett automatisk...</button>
-      <button id="btnFlipRoom" class="toggle" data-i18n="roomToolbarFlip">Snu visning</button>
-      <button id="btnBulkZones" data-i18n="bulkZonesBtn">Rediger soner (valde)</button>
-      <button id="btnMergeGroups" data-i18n="mergeGroups">Slå saman valde bord</button>
-      <button id="btnSplitGroups" data-i18n="splitGroups">Skil ut valde plassar</button>
-      <span class="hint" id="roomSeatCount"></span>
+      <button id="btnAutoFrontBack" data-i18n="autoFrontBack">Auto-merk framme/bak</button>
+      <button id="btnFlipRoom" class="toggle">Snu visning</button>
       <span class="spacer"></span>
       <span data-i18n="zoomLabel">Skala</span>
       <button id="zoomOutRoom">-</button>
       <span id="zoomLabelRoom">100%</span>
       <button id="zoomInRoom">+</button>
       <button id="zoomResetRoom" data-i18n="zoomReset">Tilbakestill</button>
+    </div>
+    <div class="toolbar">
+      <button id="btnSeatMenu" data-i18n="seatMenuBtn">&#9776; Meny for valde</button>
+      <button id="btnBulkZones" data-i18n="bulkZonesBtn">Rediger soner (valde)</button>
+      <button id="btnMergeGroups" data-i18n="mergeGroups">Slå saman valde bord</button>
+      <button id="btnSplitGroups" data-i18n="splitGroups">Skil ut valde plassar</button>
+      <button id="btnClearSelection" data-i18n="clearSelection">Merk ingen</button>
+      <span class="hint" id="roomSeatCount"></span>
+    </div>
+    <div class="draft-bar" id="roomDraftBar">
+      <span class="draft-bar-icon">&#9888;</span>
+      <span data-i18n="roomDraftPending">Ulagra endringar i romoppsettet</span>
+      <span class="spacer"></span>
+      <button id="btnDiscardRoomDraft" class="danger" data-i18n="discardRoomDraft">Forkast endringar</button>
+      <button id="btnSaveRoomDraft" class="primary" data-i18n="saveRoomDraft">Lagre endringar</button>
     </div>
     <p class="hint" id="roomHint" data-i18n="roomHint"></p>
     <div class="room-scroll" id="roomScrollA">
@@ -139,6 +151,7 @@
           <button id="zoomResetSeat" data-i18n="zoomReset">Tilbakestill</button>
           <span class="spacer"></span>
           <button id="btnFullHistory" data-i18n="fullHistory">Full historikk</button>
+          <button id="btnPreviewImage" data-i18n="previewImage">Førehandsvis bilete</button>
           <button id="btnExportImage" data-i18n="exportImage">Last ned bilete (PNG)</button>
           <button id="btnExportText" data-i18n="exportText">Last ned tekst</button>
         </div>
@@ -158,6 +171,16 @@
 
   <!-- ===================== INNSTILLINGAR ===================== -->
   <section id="tab-settings" class="tabview">
+    <div class="panel">
+      <h2 data-i18n="settingsData">Data</h2>
+      <p class="hint" data-i18n="settingsDataHelp">Last ned ein sikkerheitskopi av alle klassar og rom, eller last opp ein tidlegare kopi.</p>
+      <div class="toolbar">
+        <button id="btnBackupDownload" class="primary" data-i18n="backupDownload">Last ned sikkerheitskopi</button>
+        <button id="btnBackupImport" data-i18n="backupImport">Last opp sikkerheitskopi...</button>
+        <input type="file" id="backupFile" accept="application/json" hidden>
+      </div>
+    </div>
+
     <div class="panel">
       <h2 data-i18n="settingsAppearance">Utsjånad</h2>
       <div class="settings-grid">
@@ -217,6 +240,18 @@
       <div class="toolbar" style="margin-top:1rem">
         <button id="btnResetSettings" data-i18n="settingsReset">Tilbakestill innstillingar</button>
       </div>
+    </div>
+
+    <div class="panel">
+      <h2 data-i18n="settingsFeedback">Tilbakemelding</h2>
+      <p class="hint" data-i18n="settingsFeedbackHelp">Har du forslag, spørsmål eller har funne ein feil?</p>
+      <button id="btnFeedback" data-i18n="sendFeedback">Send tilbakemelding på e-post</button>
+    </div>
+
+    <div class="panel" style="border-color:#ef4444">
+      <h2 data-i18n="settingsDanger" style="color:#ef4444">Faresone</h2>
+      <p class="hint" data-i18n="settingsDangerHelp">Slettar alt som er lagra i denne nettlesaren - alle klassar, rom og innstillingar. Kan ikkje angrast.</p>
+      <button id="btnResetAll" class="danger" data-i18n="resetAllData">Slett all lokal lagring</button>
     </div>
   </section>
 

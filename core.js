@@ -278,6 +278,22 @@ function neighbourHistoryFor(r, cls, name) {
 function zoneHistoryFor(r, cls, name) {
   return buildZoneHistory(r, cls)[name] || { framme: 0, bak: 0, vindauge: 0 };
 }
+// Kor ofte/nyleg ein elev har sete i kvar plass, basert på lagra økter.
+// Berre plassar som framleis finst i romet er med (robust mot at romet vert
+// endra sidan - då fell berre den enkeltøkta bort, resten av historikken
+// held fram å stemme). Returnerer { sid: { count, recency (0=eldst,1=nyast) } }.
+function seatHeatmapForStudent(r, cls, name) {
+  const sessions = cls.sessions, n = sessions.length, bySeat = {};
+  sessions.forEach((sess, idx) => {
+    const sid = Object.keys(sess.arrangement).find(s => sess.arrangement[s] === name);
+    if (!sid || !groupOf(r, sid)) return;
+    const rec = bySeat[sid] || (bySeat[sid] = { count: 0, lastIndex: -1 });
+    rec.count++; rec.lastIndex = Math.max(rec.lastIndex, idx);
+  });
+  const out = {};
+  for (const [sid, rec] of Object.entries(bySeat)) out[sid] = { count: rec.count, recency: n > 1 ? rec.lastIndex / (n - 1) : 1 };
+  return out;
+}
 
 // -- Plasseringsalgoritme --
 function scoreArrangement(arr, r, pairHist, zoneHist, blSet, genders, genderMode) {
@@ -310,7 +326,9 @@ function scoreArrangement(arr, r, pairHist, zoneHist, blSet, genders, genderMode
 }
 
 // Rekkjefølgje på plassar frå nærast tavla til lengst unna (brukt til å
-// fylle framme først når det er fleire plassar enn elevar).
+// fylle framme først når det er fleire plassar enn elevar). Minste raw-y
+// er alltid næraste tavla ved rendring, uavhengig av view_flipped (sjølve
+// snu-transformasjonen kompenserer for det - difor ingen avhengigheit her).
 function seatFrontOrder(r) {
   const raw = {};
   for (const g of Object.values(r.groups)) {
@@ -318,8 +336,37 @@ function seatFrontOrder(r) {
     g.seats.forEach((sid, i) => { raw[sid] = g.y + Math.floor(i / cols) * (SEAT_H + SEAT_GAP); });
   }
   const ids = Object.keys(raw);
-  ids.sort((a, b) => r.view_flipped ? (raw[b] - raw[a]) : (raw[a] - raw[b]));
+  ids.sort((a, b) => raw[a] - raw[b]);
   return ids;
+}
+
+// Merk automatisk "framme" på rada(ne) næraste tavla og "bak" på rada(ne)
+// lengst unna, ut frå faktisk geometri (ikkje avhengig av korleis romet
+// vart sett opp). Ein plass reknast som "innanfor éin plassbreidde" frå
+// enden. Vindauge-merking er ikkje del av dette (må gjerast manuelt/via
+// rutenett-verktøyet, sidan geometrien ikkje seier kva side vindauga er på).
+function autoTagFrontBack(r) {
+  const raw = {};
+  for (const g of Object.values(r.groups)) {
+    const cols = Math.max(1, g.cols || 1);
+    g.seats.forEach((sid, i) => { raw[sid] = g.y + Math.floor(i / cols) * (SEAT_H + SEAT_GAP); });
+  }
+  const ids = Object.keys(raw);
+  if (!ids.length) return;
+  const ys = ids.map(sid => raw[sid]);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const singleRow = (maxY - minY) < 1; // praktisk talt berre éi rad - inga meiningsfull "bak"
+  const threshold = SEAT_H;
+  for (const sid of ids) {
+    const y = raw[sid];
+    const nearMin = (y - minY) <= threshold;
+    const nearMax = (maxY - y) <= threshold;
+    const zones = new Set(r.seat_zones[sid] || []);
+    zones.delete('framme'); zones.delete('bak');
+    if (nearMin) zones.add('framme');
+    if (!singleRow && nearMax) zones.add('bak');
+    if (zones.size) r.seat_zones[sid] = [...zones]; else delete r.seat_zones[sid];
+  }
 }
 
 function generateArrangement(r, cls, opts = {}) {
