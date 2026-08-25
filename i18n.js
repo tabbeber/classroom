@@ -16,8 +16,9 @@ nn: {
 
   studentsHeading: "Elevar", studentsHelp: "Éin elev per linje.",
   saveStudents: "Lagre elevliste", importFile: "Importer frå fil...",
-  gendersHeading: "Kjønn", genderNone: "Ikkje oppgitt", genderGirl: "Jente", genderBoy: "Gut",
+  gendersHeading: "Kjønn", genderNone: "Ikkje oppgitt", genderGirl: "Jente", genderBoy: "Gut", genderOther: "Anna",
   blacklistHeading: "Svarteliste", blacklistHelp: "Elevpar som ikkje bør sitje saman.",
+  blacklistOverview: "Alle reglar", blacklistOverviewEmpty: "Ingen reglar enno.", removeRule: "Fjern regel",
   addPair: "Legg til par", removePair: "Fjern valt", blacklistWith: "skal ikkje sitje med",
   pairExists: "Paret finst alt.", pickTwo: "Vel to ulike elevar.",
 
@@ -48,6 +49,9 @@ nn: {
   autoFrontBack: "Auto-merk framme/bak", seatMenuBtn: "☰ Meny for valde", clearSelection: "Merk ingen",
   noSelectionHint: "Vel ein plass fyrst (klikk, eller Ctrl+klikk for fleire).",
   previewImage: "Førehandsvis bilete", previewTitle: "Førehandsvising", previewFlip: "Snu visning",
+  historyBrowserBtn: "Bla i tidlegare plasseringar", historyBrowserTitle: "Tidlegare plasseringar",
+  historyBrowserOlder: "Eldre", historyBrowserNewer: "Nyare", historyBrowserRestore: "Gjenopprett denne plasseringa",
+  historyBrowserRestoreConfirm: "Erstatte gjeldande plassering med denne? Noverande plassering vert ikkje lagra automatisk først.",
   mergeNeedTwo: "Vel minst to bordgrupper (Ctrl+klikk på éin plass i kvar) for å slå dei saman.",
   splitNeedSelection: "Vel plassar (Ctrl+klikk) for å skilje dei ut i eiga bordgruppe.",
 
@@ -77,7 +81,7 @@ nn: {
   settingsData: "Data", settingsDataHelp: "Last ned ein sikkerheitskopi av alle klassar og rom, eller last opp ein tidlegare kopi.",
   backupDownload: "Last ned sikkerheitskopi", backupImport: "Last opp sikkerheitskopi...",
   settingsFeedback: "Tilbakemelding", settingsFeedbackHelp: "Har du forslag, spørsmål eller har funne ein feil?",
-  sendFeedback: "Send tilbakemelding på e-post",
+  sendFeedback: "Send tilbakemelding på e-post", kofiText: "Liker du produktet? Kjøp meg gjerne ein kaffi.",
   settingsDanger: "Faresone", settingsDangerHelp: "Slettar alt som er lagra i denne nettlesaren - alle klassar, rom og innstillingar. Kan ikkje angrast.",
   resetAllData: "Slett all lokal lagring",
   resetConfirmTitle: "Slette alt?", resetConfirmText: "Dette slettar ALLE klassar, rom, historikk og innstillingar lagra i denne nettlesaren. Dette kan IKKJE angrast.",
@@ -111,8 +115,9 @@ nb: {
 
   studentsHeading: "Elever", studentsHelp: "Én elev per linje.",
   saveStudents: "Lagre elevliste", importFile: "Importer fra fil...",
-  gendersHeading: "Kjønn", genderNone: "Ikke oppgitt", genderGirl: "Jente", genderBoy: "Gutt",
+  gendersHeading: "Kjønn", genderNone: "Ikke oppgitt", genderGirl: "Jente", genderBoy: "Gutt", genderOther: "Annet",
   blacklistHeading: "Svarteliste", blacklistHelp: "Elevpar som ikke bør sitte sammen.",
+  blacklistOverview: "Alle regler", blacklistOverviewEmpty: "Ingen regler ennå.", removeRule: "Fjern regel",
   addPair: "Legg til par", removePair: "Fjern valgt", blacklistWith: "skal ikke sitte med",
   pairExists: "Paret finnes allerede.", pickTwo: "Velg to ulike elever.",
 
@@ -143,6 +148,9 @@ nb: {
   autoFrontBack: "Auto-merk foran/bak", seatMenuBtn: "☰ Meny for valgte", clearSelection: "Merk ingen",
   noSelectionHint: "Velg en plass først (klikk, eller Ctrl+klikk for flere).",
   previewImage: "Forhåndsvis bilde", previewTitle: "Forhåndsvisning", previewFlip: "Snu visning",
+  historyBrowserBtn: "Bla i tidligere plasseringer", historyBrowserTitle: "Tidligere plasseringer",
+  historyBrowserOlder: "Eldre", historyBrowserNewer: "Nyere", historyBrowserRestore: "Gjenopprett denne plasseringen",
+  historyBrowserRestoreConfirm: "Erstatte gjeldende plassering med denne? Nåværende plassering blir ikke lagret automatisk først.",
   mergeNeedTwo: "Velg minst to bordgrupper (Ctrl+klikk på én plass i hver) for å slå dem sammen.",
   splitNeedSelection: "Velg plasser (Ctrl+klikk) for å skille dem ut i egen bordgruppe.",
 
@@ -172,7 +180,7 @@ nb: {
   settingsData: "Data", settingsDataHelp: "Last ned en sikkerhetskopi av alle klasser og rom, eller last opp en tidligere kopi.",
   backupDownload: "Last ned sikkerhetskopi", backupImport: "Last opp sikkerhetskopi...",
   settingsFeedback: "Tilbakemelding", settingsFeedbackHelp: "Har du forslag, spørsmål eller har funnet en feil?",
-  sendFeedback: "Send tilbakemelding på e-post",
+  sendFeedback: "Send tilbakemelding på e-post", kofiText: "Liker du produktet? Kjøp meg gjerne en kaffe.",
   settingsDanger: "Faresone", settingsDangerHelp: "Sletter alt som er lagret i denne nettleseren - alle klasser, rom og innstillinger. Kan ikke angres.",
   resetAllData: "Slett all lokal lagring",
   resetConfirmTitle: "Slette alt?", resetConfirmText: "Dette sletter ALLE klasser, rom, historikk og innstillinger lagret i denne nettleseren. Dette kan IKKE angres.",
@@ -206,8 +214,9 @@ en: {
 
   studentsHeading: "Students", studentsHelp: "One student per line.",
   saveStudents: "Save student list", importFile: "Import from file...",
-  gendersHeading: "Gender", genderNone: "Not set", genderGirl: "Girl", genderBoy: "Boy",
+  gendersHeading: "Gender", genderNone: "Not set", genderGirl: "Girl", genderBoy: "Boy", genderOther: "Other",
   blacklistHeading: "Blocklist", blacklistHelp: "Student pairs who should not sit together.",
+  blacklistOverview: "All rules", blacklistOverviewEmpty: "No rules yet.", removeRule: "Remove rule",
   addPair: "Add pair", removePair: "Remove selected", blacklistWith: "should not sit with",
   pairExists: "This pair already exists.", pickTwo: "Pick two different students.",
 
@@ -238,6 +247,9 @@ en: {
   autoFrontBack: "Auto-tag front/back", seatMenuBtn: "☰ Menu for selected", clearSelection: "Select none",
   noSelectionHint: "Select a seat first (click, or Ctrl+click for more).",
   previewImage: "Preview image", previewTitle: "Preview", previewFlip: "Flip view",
+  historyBrowserBtn: "Browse past seatings", historyBrowserTitle: "Past seatings",
+  historyBrowserOlder: "Older", historyBrowserNewer: "Newer", historyBrowserRestore: "Restore this seating",
+  historyBrowserRestoreConfirm: "Replace current seating with this one? The current seating will not be saved automatically first.",
   mergeNeedTwo: "Select at least two table groups (Ctrl+click one seat in each) to merge them.",
   splitNeedSelection: "Select seats (Ctrl+click) to split them into their own table group.",
 
@@ -267,7 +279,7 @@ en: {
   settingsData: "Data", settingsDataHelp: "Download a backup of all classes and rooms, or upload a previous backup.",
   backupDownload: "Download backup", backupImport: "Upload backup...",
   settingsFeedback: "Feedback", settingsFeedbackHelp: "Have suggestions, questions, or found a bug?",
-  sendFeedback: "Send feedback by email",
+  sendFeedback: "Send feedback by email", kofiText: "Enjoying the app? Feel free to buy me a coffee.",
   settingsDanger: "Danger zone", settingsDangerHelp: "Deletes everything stored in this browser - all classes, rooms, and settings. Cannot be undone.",
   resetAllData: "Delete all local data",
   resetConfirmTitle: "Delete everything?", resetConfirmText: "This deletes ALL classes, rooms, history, and settings stored in this browser. This CANNOT be undone.",

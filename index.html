@@ -69,10 +69,18 @@
     <div class="panel">
       <h2 data-i18n="blacklistHeading">Svarteliste</h2>
       <p class="hint" data-i18n="blacklistHelp">Elevpar som ikkje bør sitje saman.</p>
-      <div class="row">
-        <select id="blPickA"></select>
+      <div class="blacklist-grid">
+        <div>
+          <div class="row">
+            <select id="blPickA"></select>
+          </div>
+          <div id="blacklistChecklist" style="margin-top:.5rem"></div>
+        </div>
+        <div>
+          <h3 style="margin-top:0" data-i18n="blacklistOverview">Alle reglar</h3>
+          <div id="blacklistOverview"></div>
+        </div>
       </div>
-      <div id="blacklistChecklist" style="margin-top:.5rem"></div>
     </div>
   </section>
 
@@ -151,9 +159,9 @@
           <button id="zoomResetSeat" data-i18n="zoomReset">Tilbakestill</button>
           <span class="spacer"></span>
           <button id="btnFullHistory" data-i18n="fullHistory">Full historikk</button>
+          <button id="btnHistoryBrowser" data-i18n="historyBrowserBtn">Bla i tidlegare plasseringar</button>
           <button id="btnPreviewImage" data-i18n="previewImage">Førehandsvis bilete</button>
           <button id="btnExportImage" data-i18n="exportImage">Last ned bilete (PNG)</button>
-          <button id="btnExportText" data-i18n="exportText">Last ned tekst</button>
         </div>
         <div class="room-scroll" id="roomScrollB">
           <div class="room-canvas" id="roomCanvasB"></div>
@@ -246,6 +254,8 @@
       <h2 data-i18n="settingsFeedback">Tilbakemelding</h2>
       <p class="hint" data-i18n="settingsFeedbackHelp">Har du forslag, spørsmål eller har funne ein feil?</p>
       <button id="btnFeedback" data-i18n="sendFeedback">Send tilbakemelding på e-post</button>
+      <p class="hint" style="margin-top:1rem" data-i18n="kofiText">Liker du produktet? Kjøp meg gjerne ein kaffi.</p>
+      <div id="kofiContainer"></div>
     </div>
 
     <div class="panel" style="border-color:#ef4444">
@@ -264,5 +274,12 @@
 <script src="core.js"></script>
 <script src="i18n.js"></script>
 <script src="app.js"></script>
+<script src="https://storage.ko-fi.com/cdn/widget/Widget_2.js"></script>
+<script>
+  if (typeof kofiwidget2 !== 'undefined') {
+    kofiwidget2.init('Kjøp meg ein kaffi!', '#72a4f2', 'H4Y525OAYW');
+    kofiwidget2.draw();
+  }
+</script>
 </body>
 </html>

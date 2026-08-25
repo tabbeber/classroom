@@ -126,12 +126,22 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 }
 .class-list .item.active { background: var(--row-active); }
 .class-list .item .name { flex: 1; font-weight: 600; }
-.gender-row, .pair-row { display: flex; align-items: center; gap: .5rem; padding: .3rem 0; }
-.gender-row .name { width: 10rem; }
+.gender-row, .pair-row { display: flex; align-items: center; gap: .3rem; padding: .12rem 0; }
+.gender-row .name { width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gender-radio {
+  display: inline-flex; align-items: center; gap: .15rem; padding: .1rem .4rem;
+  border-radius: calc(var(--radius) * .4); cursor: pointer; font-size: .82rem; user-select: none;
+}
+.gender-radio:hover { background: var(--row-bg); }
+.gender-radio input { margin: 0; }
 .class-students-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
 .class-students-grid textarea { width: 100%; }
 .gender-list-scroll { max-height: 320px; overflow: auto; }
-@media (max-width: 820px) { .class-students-grid { grid-template-columns: 1fr; } }
+.blacklist-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
+.blacklist-rule { display: flex; align-items: center; gap: .4rem; padding: .3rem .5rem; border-radius: calc(var(--radius)*.6); background: var(--row-bg); margin-bottom: .3rem; }
+.blacklist-rule .names { flex: 1; }
+.blacklist-rule button { padding: .1rem .5rem; line-height: 1; color: #ef4444; border-color: #ef4444; }
+@media (max-width: 820px) { .class-students-grid, .blacklist-grid { grid-template-columns: 1fr; } }
 
 /* -- Klasserom / Plassering: layout -- */
 .seating-layout { display: flex; gap: .8rem; flex: 1; min-height: 0; }

@@ -662,8 +662,9 @@ function exportTitleLine() {
 // ingen soner, lås eller åtvaringar) til eit gjeve canvas. `flipped` er
 // uavhengig av romet sitt gjeldande view_flipped, slik at førehandsvising
 // kan snuast utan å påverke sjølve romet.
-async function drawSeatingChart(canvas, flipped) {
+async function drawSeatingChart(canvas, flipped, arrangementOverride, titleOverride) {
   const room = App.room, cls = App.data, { w: seatW, h: seatH } = computeSeatSize(cls.students);
+  const arrangement = arrangementOverride || cls.arrangement;
   const layoutRoom = { groups: room.groups, view_flipped: flipped };
   const { positions, boardRect, totalW, totalH } = computeLayout(layoutRoom, seatW, seatH);
   const titleH = 40;
@@ -693,7 +694,7 @@ async function drawSeatingChart(canvas, flipped) {
     });
   }
   ctx.fillStyle = ink; ctx.font = 'bold 16px "Segoe UI",Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  ctx.fillText(exportTitleLine(), 16, 26);
+  ctx.fillText(titleOverride || exportTitleLine(), 16, 26);
 
   const [bx, by0, bw] = boardRect, by = by0 + titleH;
   roundRect(ctx, bx, by, bw, BOARD_H, 4); ctx.fillStyle = '#374151'; ctx.fill();
@@ -703,7 +704,7 @@ async function drawSeatingChart(canvas, flipped) {
   for (const g of Object.values(room.groups)) for (const sid of g.seats) {
     if (!positions[sid]) continue;
     const [px, py0] = positions[sid], py = py0 + titleH;
-    const student = cls.arrangement[sid];
+    const student = arrangement[sid];
     roundRect(ctx, px, py, seatW, seatH, 8); ctx.fillStyle = panelBg; ctx.fill();
     ctx.strokeStyle = panelBorder; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = student ? ink : muted; ctx.font = (student ? 'bold ' : '') + '13px "Segoe UI"';
@@ -737,13 +738,46 @@ async function openImagePreviewModal() {
   modal.querySelector('#pvDownload').onclick = () => downloadDataUrl(canvas.toDataURL('image/png'), 'klasseromplassering.png');
   modal.querySelector('#pvClose').onclick = closeModal;
 }
-function exportText() {
-  const room = App.room, cls = App.data;
-  const lines = [exportTitleLine(), ''];
-  const groups = Object.values(room.groups).sort((a, b) => a.y - b.y || a.x - b.x);
-  for (const g of groups) lines.push(`(${g.seats.length}): ${g.seats.map(sid => cls.arrangement[sid] || '\u2014').join(', ')}`);
-  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
-  downloadDataUrl(URL.createObjectURL(blob), 'plassering.txt');
+// Bla attover/framover gjennom lagra øktar og sjå kvar heile klassen sat.
+async function openHistoryBrowserModal() {
+  const sessions = App.data.sessions;
+  if (!sessions.length) { alert(t('noHistory')); return; }
+  let idx = sessions.length - 1, flipped = App.room.view_flipped;
+  const modal = openModal(`
+    <h2>${t('historyBrowserTitle')}</h2>
+    <div class="row" style="margin-bottom:.6rem; flex-wrap:wrap">
+      <button id="hbPrev">\u2190 ${t('historyBrowserOlder')}</button>
+      <span id="hbLabel" style="font-weight:600"></span>
+      <button id="hbNext">${t('historyBrowserNewer')} \u2192</button>
+      <span class="spacer"></span>
+      <button id="hbFlip">${t('previewFlip')}</button>
+      <button id="hbRestore" class="danger">${t('historyBrowserRestore')}</button>
+      <button id="hbClose">${t('close')}</button>
+    </div>
+    <div style="max-height:72vh; overflow:auto; border:1px solid var(--panel-border); border-radius:8px; text-align:center;">
+      <canvas id="hbCanvas" style="max-width:100%; height:auto; display:inline-block;"></canvas>
+    </div>`);
+  modal.style.maxWidth = '92vw';
+  const canvas = modal.querySelector('#hbCanvas'), label = modal.querySelector('#hbLabel');
+  const prevBtn = modal.querySelector('#hbPrev'), nextBtn = modal.querySelector('#hbNext');
+  const redraw = async () => {
+    const sess = sessions[idx], when = new Date(sess.timestamp).toLocaleString();
+    label.textContent = `${idx + 1}/${sessions.length} \u00b7 ${when}` + (sess.label ? ' \u2014 ' + sess.label : '');
+    await drawSeatingChart(canvas, flipped, sess.arrangement, label.textContent);
+    prevBtn.disabled = idx === 0; nextBtn.disabled = idx === sessions.length - 1;
+  };
+  await redraw();
+  prevBtn.onclick = async () => { if (idx > 0) { idx--; await redraw(); } };
+  nextBtn.onclick = async () => { if (idx < sessions.length - 1) { idx++; await redraw(); } };
+  modal.querySelector('#hbFlip').onclick = async () => { flipped = !flipped; await redraw(); };
+  modal.querySelector('#hbRestore').onclick = () => {
+    if (!confirm(t('historyBrowserRestoreConfirm'))) return;
+    App.data.arrangement = { ...sessions[idx].arrangement };
+    saveCurrentClass(); closeModal();
+    App.selectedSeat = null; App.selectedStudent = null;
+    renderAllRoomViews(); renderPool(); renderInfoPanel();
+  };
+  modal.querySelector('#hbClose').onclick = closeModal;
 }
 
 // -- Elevpool og historikk-/infopanel --
@@ -830,16 +864,21 @@ function renderClassTab() {
 }
 function renderGenderList() {
   const wrap = document.getElementById('genderList'); wrap.innerHTML = '';
+  const opts = [['', '\u2013', t('genderNone')], ['Jente', 'J', t('genderGirl')], ['Gut', 'G', t('genderBoy')], ['Anna', 'A', t('genderOther')]];
   for (const name of App.data.students) {
     const row = document.createElement('div'); row.className = 'gender-row';
     const label = document.createElement('span'); label.className = 'name'; label.textContent = name;
-    const sel = document.createElement('select');
-    sel.appendChild(new Option(t('genderNone'), ''));
-    sel.appendChild(new Option(t('genderGirl'), 'Jente'));
-    sel.appendChild(new Option(t('genderBoy'), 'Gut'));
-    sel.value = App.data.genders[name] || '';
-    sel.onchange = () => { if (sel.value) App.data.genders[name] = sel.value; else delete App.data.genders[name]; saveCurrentClass(); };
-    row.appendChild(label); row.appendChild(sel); wrap.appendChild(row);
+    row.appendChild(label);
+    const current = App.data.genders[name] || '';
+    for (const [val, short, full] of opts) {
+      const optLabel = document.createElement('label'); optLabel.className = 'gender-radio'; optLabel.title = full;
+      const input = document.createElement('input');
+      input.type = 'radio'; input.name = 'gender_' + name; input.checked = current === val;
+      input.onchange = () => { if (val) App.data.genders[name] = val; else delete App.data.genders[name]; saveCurrentClass(); };
+      optLabel.appendChild(input); optLabel.appendChild(document.createTextNode(short));
+      row.appendChild(optLabel);
+    }
+    wrap.appendChild(row);
   }
   if (!App.data.students.length) wrap.innerHTML = `<p class="hint">${t('noStudents')}</p>`;
 }
@@ -850,6 +889,7 @@ function renderBlacklistUI() {
   for (const name of cls.students) sel.appendChild(new Option(name, name));
   if (prevVal && cls.students.includes(prevVal)) sel.value = prevVal;
   renderBlacklistChecklist();
+  renderBlacklistOverview();
 }
 function renderBlacklistChecklist() {
   const cls = App.data, main = document.getElementById('blPickA').value;
@@ -864,9 +904,22 @@ function renderBlacklistChecklist() {
     const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = already.has(name);
     cb.onchange = () => {
       if (cb.checked) addBlacklistPair(cls, main, name); else removeBlacklistPair(cls, main, name);
-      saveCurrentClass(); renderAllRoomViews();
+      saveCurrentClass(); renderAllRoomViews(); renderBlacklistOverview();
     };
     row.appendChild(cb); row.appendChild(document.createTextNode(' ' + name));
+    wrap.appendChild(row);
+  }
+}
+function renderBlacklistOverview() {
+  const cls = App.data, wrap = document.getElementById('blacklistOverview');
+  wrap.innerHTML = '';
+  if (!cls.blacklist.length) { wrap.innerHTML = `<p class="hint">${t('blacklistOverviewEmpty')}</p>`; return; }
+  for (const [a, b] of cls.blacklist) {
+    const row = document.createElement('div'); row.className = 'blacklist-rule';
+    const names = document.createElement('span'); names.className = 'names'; names.textContent = `${a} \u2194 ${b}`;
+    const rm = document.createElement('button'); rm.textContent = '\u00d7'; rm.title = t('removeRule');
+    rm.onclick = () => { removeBlacklistPair(cls, a, b); saveCurrentClass(); renderAllRoomViews(); renderBlacklistUI(); };
+    row.appendChild(names); row.appendChild(rm);
     wrap.appendChild(row);
   }
 }
@@ -1251,9 +1304,9 @@ function wireEvents() {
   document.getElementById('genderModeSelect').onchange = e => { App.data.gender_weight_mode = e.target.value; saveCurrentClass(); };
   document.getElementById('poolSearch').oninput = renderPool;
   document.getElementById('btnFullHistory').onclick = openFullHistoryModal;
+  document.getElementById('btnHistoryBrowser').onclick = openHistoryBrowserModal;
   document.getElementById('btnPreviewImage').onclick = openImagePreviewModal;
   document.getElementById('btnExportImage').onclick = exportImage;
-  document.getElementById('btnExportText').onclick = exportText;
   document.getElementById('poolCollapseBtn').onclick = () => toggleSidePanel(document.getElementById('poolPanel'), 'poolCollapsed');
   document.getElementById('infoCollapseBtn').onclick = () => toggleSidePanel(document.getElementById('infoPanelWrap'), 'infoCollapsed');
 
