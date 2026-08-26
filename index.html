@@ -36,30 +36,32 @@
 
   <!-- ===================== KLASSE ===================== -->
   <section id="tab-class" class="tabview active">
-    <div class="panel">
-      <h2 data-i18n="classesHeading">Klassar</h2>
-      <div id="classList" class="class-list"></div>
-      <div class="toolbar" style="margin-top:.6rem">
-        <button id="btnNewClass" class="primary" data-i18n="newClass">Ny klasse</button>
-        <button id="btnRenameClass" data-i18n="renameClass">Endre namn</button>
-        <button id="btnDuplicateClass" data-i18n="duplicateClass">Kopier</button>
-        <button id="btnDeleteClass" class="danger" data-i18n="deleteClass">Slett</button>
-        <button id="btnSetDefault" data-i18n="setDefault">Set som standard</button>
-        <button id="btnExportClass" data-i18n="exportClass">Last ned fil</button>
-        <button id="btnImportClass" data-i18n="importClass">Last opp fil</button>
-        <input type="file" id="importClassFile" accept="application/json" hidden>
+    <div class="class-top-grid">
+      <div class="panel">
+        <h2 data-i18n="classesHeading">Klassar</h2>
+        <div id="classList" class="class-list"></div>
+        <div class="toolbar" style="margin-top:.6rem">
+          <button id="btnNewClass" class="primary" data-i18n="newClass">Ny klasse</button>
+          <button id="btnRenameClass" data-i18n="renameClass">Endre namn</button>
+          <button id="btnDuplicateClass" data-i18n="duplicateClass">Kopier</button>
+          <button id="btnDeleteClass" class="danger" data-i18n="deleteClass">Slett</button>
+          <button id="btnSetDefault" data-i18n="setDefault">Set som standard</button>
+          <button id="btnExportClass" data-i18n="exportClass">Last ned fil</button>
+          <button id="btnImportClass" data-i18n="importClass">Last opp fil</button>
+          <input type="file" id="importClassFile" accept="application/json" hidden>
+        </div>
       </div>
-    </div>
 
-    <div class="panel">
-      <h2 data-i18n="studentsHeading">Elevar</h2>
-      <p class="hint" data-i18n="studentsHelp">Namn og kjønn for kvar elev. Lim inn fleire namn (eitt per linje) i feltet for å leggje til mange på éin gong.</p>
-      <div id="studentRows" class="student-rows-scroll"></div>
-      <div class="row" style="margin-top:.5rem">
-        <input type="text" id="newStudentInput" data-i18n-ph="newStudentPlaceholder" placeholder="Nytt elevnamn...">
-        <button id="btnAddStudent" class="primary" data-i18n="addStudent">Legg til</button>
-        <button id="btnImportStudents" data-i18n="importFile">Importer frå fil...</button>
-        <input type="file" id="importStudentsFile" accept=".txt" hidden>
+      <div class="panel">
+        <h2 data-i18n="studentsHeading">Elevar</h2>
+        <p class="hint" data-i18n="studentsHelp">Namn og kjønn for kvar elev. Lim inn fleire namn (eitt per linje) i feltet for å leggje til mange på éin gong.</p>
+        <div id="studentRows" class="student-rows-scroll"></div>
+        <div class="row" style="margin-top:.5rem">
+          <input type="text" id="newStudentInput" data-i18n-ph="newStudentPlaceholder" placeholder="Nytt elevnamn...">
+          <button id="btnAddStudent" class="primary" data-i18n="addStudent">Legg til</button>
+          <button id="btnImportStudents" data-i18n="importFile">Importer frå fil...</button>
+          <input type="file" id="importStudentsFile" accept=".txt" hidden>
+        </div>
       </div>
     </div>
 
@@ -148,6 +150,8 @@
   <!-- ===================== PLASSERING ===================== -->
   <section id="tab-seating" class="tabview">
     <div class="toolbar">
+      <span data-i18n="roomHeading">Rom:</span>
+      <select id="roomSelectSeating"></select>
       <button id="btnRandom" class="primary" data-i18n="seatingRandom">Tilfeldig plassering</button>
       <button id="btnClearArrangement" data-i18n="seatingClear">Tøm plassering</button>
       <button id="btnSaveHistory" data-i18n="seatingSave">Lagre plassering til historikk</button>
@@ -222,8 +226,13 @@
         <option value="size" data-i18n="groupModeSize">Elevar per gruppe</option>
       </select>
       <input type="number" id="groupValueInput" min="1" value="4" style="width:5rem">
-      <button id="btnGenerateGroups" class="primary" data-i18n="generateGroups">Fordel automatisk</button>
+      <div class="split-btn">
+        <button id="btnGenerateGroups" class="primary" data-i18n="generateGroups">Fordel automatisk</button>
+        <button id="btnGenerateGroupsMenu" class="primary split-btn-arrow" title="Fleire fordelingsval" data-i18n-title="moreDistributeOptions">&#9662;</button>
+      </div>
       <button id="btnClearGroups" data-i18n="clearGroups">Tøm grupper</button>
+      <span class="spacer"></span>
+      <button id="btnCopyGroups" data-i18n="copyGroups">Kopier grupper som tekst</button>
     </div>
     <div class="seating-layout">
       <div class="pool-panel side-panel" id="groupPoolPanel">

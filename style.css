@@ -94,6 +94,18 @@ button.primary:hover { background: var(--accent-dark); }
 button.danger { color: #ef4444; border-color: #ef4444; }
 button.toggle.active { background: #fde68a; border-color: #d97706; color: #111827; }
 button:disabled { opacity: .5; cursor: not-allowed; }
+button.needs-save {
+  background: var(--accent); border-color: var(--accent); color: white; font-weight: 700;
+  background-image: linear-gradient(120deg, transparent 35%, rgba(255,255,255,.65) 50%, transparent 65%);
+  background-size: 260% 100%; background-repeat: no-repeat;
+  animation: btn-glint 5s ease-in-out infinite;
+}
+button.needs-save:hover { background-color: var(--accent-dark); }
+@keyframes btn-glint {
+  0%, 85% { background-position: -160% 0; }
+  100% { background-position: 260% 0; }
+}
+@media (prefers-reduced-motion: reduce) { button.needs-save { animation: none; } }
 select, input[type=text], input[type=number], textarea {
   font-size: calc(0.92rem * var(--ui-scale)); font-family: inherit; border-radius: calc(var(--radius) * .6);
   border: 1px solid var(--panel-border); padding: .4rem .55rem; background: var(--input-bg); color: var(--ink);
@@ -149,11 +161,13 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 .class-students-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
 .class-students-grid textarea { width: 100%; }
 .gender-list-scroll { max-height: 320px; overflow: auto; }
+.class-top-grid { display: grid; grid-template-columns: 420px 1fr; gap: 1.2rem; align-items: start; }
 .blacklist-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
-.blacklist-rule { display: flex; align-items: center; gap: .4rem; padding: .3rem .5rem; border-radius: calc(var(--radius)*.6); background: var(--row-bg); margin-bottom: .3rem; }
+#blacklistOverview { columns: 2; column-gap: 1rem; }
+.blacklist-rule { display: flex; align-items: center; gap: .4rem; padding: .3rem .5rem; border-radius: calc(var(--radius)*.6); background: var(--row-bg); margin-bottom: .3rem; break-inside: avoid; }
 .blacklist-rule .names { flex: 1; }
 .blacklist-rule button { padding: .1rem .5rem; line-height: 1; color: #ef4444; border-color: #ef4444; }
-@media (max-width: 820px) { .class-students-grid, .blacklist-grid { grid-template-columns: 1fr; } }
+@media (max-width: 820px) { .class-students-grid, .blacklist-grid, .class-top-grid { grid-template-columns: 1fr; } #blacklistOverview { columns: 1; } }
 
 /* -- Klasserom / Plassering: layout -- */
 .seating-layout { display: flex; gap: .8rem; flex: 1; min-height: 0; }
@@ -210,10 +224,25 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 .groups-canvas { display: flex; flex-wrap: wrap; gap: .9rem; align-content: flex-start; }
 .group-card {
   background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: var(--radius);
-  padding: .6rem; width: 220px; min-height: 120px;
+  padding: .6rem; width: 220px; min-height: 120px; display: flex; flex-direction: column;
 }
-.group-card h4 { margin: 0 0 .4rem; }
-.group-members { display: flex; flex-direction: column; gap: .3rem; min-height: 40px; }
+.group-card-head { display: flex; align-items: center; gap: .4rem; margin-bottom: .4rem; }
+.group-name-input {
+  flex: 1; min-width: 0; border: none; background: transparent; font-weight: 700; padding: .1rem .2rem;
+  border-radius: calc(var(--radius) * .3); color: var(--ink);
+}
+.group-name-input:hover, .group-name-input:focus { background: var(--row-bg); }
+.group-members { display: flex; flex-direction: column; gap: .3rem; min-height: 40px; flex: 1; }
+.group-add-zone {
+  margin-top: .4rem; border: 1.5px dashed var(--panel-border); border-radius: calc(var(--radius) * .6);
+  color: var(--muted); text-align: center; padding: .3rem; font-weight: 700; cursor: pointer;
+  transition: border-color .12s, color .12s, background .12s;
+}
+.group-add-zone:hover { border-color: var(--accent); color: var(--accent); background: rgba(var(--glass-rgb),.4); }
+
+.split-btn { display: inline-flex; }
+.split-btn button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split-btn-arrow { border-top-left-radius: 0 !important; border-bottom-left-radius: 0 !important; border-left: none; padding: .45rem .5rem; }
 
 .group-frame {
   position: absolute; border-radius: calc(var(--radius) + 6px);

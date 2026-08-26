@@ -16,6 +16,7 @@ const App = {
   drag: null, ctxMenu: null,
   roomDirty: false,
   heatmapEnabled: false, heatmapData: null,
+  arrangementDirty: false,
 };
 
 // -- Tekstmåling og layout-utrekning --
@@ -142,7 +143,7 @@ function renderRoom(containerId, mode, zoom) {
     container.appendChild(hint);
     return;
   }
-  const repeatWarn = mode === 'seating' ? repeatNeighbourSeats(room, cls, cls.arrangement) : {};
+  const repeatWarn = (mode === 'seating' && App.arrangementDirty) ? repeatNeighbourSeats(room, cls, cls.arrangement) : {};
   const blWarn = mode === 'seating' ? blacklistViolationSeats(room, cls, cls.arrangement) : {};
   _groupFrameCache[containerId] = {};
   for (const [gid, g] of Object.entries(room.groups)) {
@@ -358,6 +359,7 @@ function placeStudent(student, targetSeat) {
   if (hits.length && !confirm(`${student} ${t('blacklistWith')} ${hits.join(', ')}. ${t('confirm')}?`)) return;
   const old = studentSeat(cls, student); if (old) delete cls.arrangement[old];
   cls.arrangement[targetSeat] = student;
+  markArrangementDirty();
   saveCurrentClass(); renderAllRoomViews(); renderPool(); renderInfoPanel();
 }
 function moveOrSwap(sourceSid, targetSeat) {
@@ -369,12 +371,13 @@ function moveOrSwap(sourceSid, targetSeat) {
   const other = cls.arrangement[targetSeat];
   if (other) cls.arrangement[sourceSid] = other; else delete cls.arrangement[sourceSid];
   cls.arrangement[targetSeat] = moving;
+  markArrangementDirty();
   saveCurrentClass(); renderAllRoomViews(); renderPool(); renderInfoPanel();
 }
 function handleSeatDrop(sourceSid, targetSid, inPool) {
   const cls = App.data, student = cls.arrangement[sourceSid]; if (!student) return;
   if (targetSid && targetSid !== sourceSid) moveOrSwap(sourceSid, targetSid);
-  else if (inPool) { delete cls.arrangement[sourceSid]; saveCurrentClass(); renderAllRoomViews(); renderPool(); renderInfoPanel(); }
+  else if (inPool) { delete cls.arrangement[sourceSid]; markArrangementDirty(); saveCurrentClass(); renderAllRoomViews(); renderPool(); renderInfoPanel(); }
 }
 
 // -- Høgreklikk-meny --
@@ -398,7 +401,7 @@ function buildSeatMenuItems(sid) {
   const locked = !!cls.locked[sid];
   items.push([locked ? t('unlockSeat') : t('lockSeat'), () => { cls.locked[sid] = !locked; saveCurrentClass(); renderAllRoomViews(); }]);
   items.push([t('editZones'), () => openEditZonesModal(sid)]);
-  if (cls.arrangement[sid]) items.push([t('clearSeat'), () => { delete cls.arrangement[sid]; saveCurrentClass(); renderAllRoomViews(); renderPool(); }]);
+  if (cls.arrangement[sid]) items.push([t('clearSeat'), () => { delete cls.arrangement[sid]; markArrangementDirty(); saveCurrentClass(); renderAllRoomViews(); renderPool(); }]);
   const gid = groupOf(room, sid);
   if (gid) {
     items.push([t('selectGroup'), () => { App.multiSelected = new Set(room.groups[gid].seats); renderAllRoomViews(); }]);
@@ -868,32 +871,54 @@ function renderGroupPool() {
   for (const name of unassigned) {
     const el = document.createElement('div');
     el.className = 'pool-item' + (App.armedStudent === name ? ' armed' : '');
-    el.textContent = name;
+    el.textContent = name; el.dataset.name = name;
     attachGroupItemEvents(el, name);
     wrap.appendChild(el);
   }
   if (!App.data.students.length) wrap.innerHTML = `<p class="hint">${t('noStudents')}</p>`;
   else if (!unassigned.length) wrap.innerHTML = `<p class="hint">${t('allGrouped')}</p>`;
 }
+function groupDisplayName(idx) {
+  const custom = (App.data.group_names || {})[idx];
+  return custom || t('groupLabel', { n: idx + 1 });
+}
 function renderGroupCards() {
   const wrap = document.getElementById('groupsCanvas'); wrap.innerHTML = '';
   const n = groupCountFor(App.data), assigned = App.data.group_assignment || {};
   for (let i = 0; i < n; i++) {
     const members = App.data.students.filter(s => assigned[s] === i);
-    const card = document.createElement('div'); card.className = 'group-card';
-    const head = document.createElement('h4');
-    head.innerHTML = `${t('groupLabel', { n: i + 1 })} <span class="hint">(${members.length})</span>`;
+    const card = document.createElement('div'); card.className = 'group-card'; card.dataset.group = i;
+
+    const head = document.createElement('div'); head.className = 'group-card-head';
+    const nameInput = document.createElement('input'); nameInput.className = 'group-name-input';
+    nameInput.value = (App.data.group_names || {})[i] || '';
+    nameInput.placeholder = t('groupLabel', { n: i + 1 });
+    nameInput.onchange = () => {
+      const v = nameInput.value.trim();
+      App.data.group_names = App.data.group_names || {};
+      if (v) App.data.group_names[i] = v; else delete App.data.group_names[i];
+      saveCurrentClass();
+    };
+    head.appendChild(nameInput);
+    const countSpan = document.createElement('span'); countSpan.className = 'hint'; countSpan.textContent = `(${members.length})`;
+    head.appendChild(countSpan);
     card.appendChild(head);
+
     const memWrap = document.createElement('div'); memWrap.className = 'group-members'; memWrap.dataset.group = i;
     for (const name of members) {
       const el = document.createElement('div');
       el.className = 'pool-item' + (App.armedStudent === name ? ' armed' : '');
-      el.textContent = name;
+      el.textContent = name; el.dataset.name = name;
       attachGroupItemEvents(el, name);
       memWrap.appendChild(el);
     }
-    memWrap.addEventListener('click', e => { if (!e.target.closest('.pool-item')) handleGroupTargetClick(i); });
     card.appendChild(memWrap);
+
+    const addZone = document.createElement('div'); addZone.className = 'group-add-zone'; addZone.dataset.group = i;
+    addZone.textContent = '+'; addZone.title = t('groupAddZoneHint');
+    addZone.addEventListener('click', () => handleGroupTargetClick(i));
+    card.appendChild(addZone);
+
     wrap.appendChild(card);
   }
 }
@@ -921,10 +946,19 @@ function onGroupItemPointerUp(e) {
   destroyGhost();
   if (drag.dragging) {
     const target = document.elementFromPoint(e.clientX, e.clientY);
-    const groupEl = target && target.closest('.group-members');
+    const memberPill = target && target.closest('.pool-item');
+    const addZone = target && target.closest('.group-add-zone');
+    const groupCard = target && target.closest('.group-card');
     const poolEl = target && target.closest('#groupPoolList');
-    if (groupEl) assignToGroup(drag.name, parseInt(groupEl.dataset.group));
-    else if (poolEl) unassignFromGroup(drag.name);
+    if (memberPill && memberPill.dataset.name && memberPill.dataset.name !== drag.name) {
+      swapGroupAssignment(drag.name, memberPill.dataset.name);
+    } else if (addZone) {
+      assignToGroup(drag.name, parseInt(addZone.dataset.group));
+    } else if (groupCard) {
+      assignToGroup(drag.name, parseInt(groupCard.dataset.group));
+    } else if (poolEl) {
+      unassignFromGroup(drag.name);
+    }
   } else {
     App.armedStudent = (App.armedStudent === drag.name) ? null : drag.name;
     renderGroupsTab();
@@ -943,6 +977,29 @@ function unassignFromGroup(name) {
   delete App.data.group_assignment[name];
   App.armedStudent = null;
   saveCurrentClass(); renderGroupsTab();
+}
+// Byt gruppeplass mellom to elevar (fungerer uansett om éin av dei er
+// ufordelt frå før - då byter dei berre plass med "ingen gruppe").
+function swapGroupAssignment(nameA, nameB) {
+  const assign = App.data.group_assignment;
+  const a = assign[nameA], b = assign[nameB];
+  if (b === undefined) delete assign[nameA]; else assign[nameA] = b;
+  if (a === undefined) delete assign[nameB]; else assign[nameB] = a;
+  App.armedStudent = null;
+  saveCurrentClass(); renderGroupsTab();
+}
+function copyGroupsAsText() {
+  const n = groupCountFor(App.data), assign = App.data.group_assignment || {};
+  const lines = [];
+  for (let i = 0; i < n; i++) {
+    lines.push(groupDisplayName(i) + ':');
+    for (const name of App.data.students) if (assign[name] === i) lines.push(name);
+    lines.push('');
+  }
+  const text = lines.join('\n').trimEnd();
+  navigator.clipboard.writeText(text)
+    .then(() => setStatus(t('groupsCopied')))
+    .catch(() => alert(text));
 }
 function renderStudentHistory(panel, name, showHeader) {
   const room = App.room, cls = App.data;
@@ -1094,10 +1151,13 @@ function renderBlacklistOverview() {
 
 // -- Klasserom-fane: rom-veljar --
 function renderRoomTab() {
-  const rooms = Store.listRooms(), sel = document.getElementById('roomSelect');
-  sel.innerHTML = '';
-  for (const r of rooms) sel.appendChild(new Option(r.name, r.id));
-  sel.value = App.roomId;
+  const rooms = Store.listRooms();
+  for (const selId of ['roomSelect', 'roomSelectSeating']) {
+    const sel = document.getElementById(selId);
+    sel.innerHTML = '';
+    for (const r of rooms) sel.appendChild(new Option(r.name, r.id));
+    sel.value = App.roomId;
+  }
 }
 
 // -- Klasse-/rom-bytte og sjølvlækjande rom-tilknyting --
@@ -1127,6 +1187,7 @@ function switchClass(id) {
   loadRoomForCurrentClass();
   App.selectedSeat = null; App.selectedStudent = null; App.multiSelected = new Set(); App.armedStudent = null;
   App.roomDirty = false; updateRoomDraftBar();
+  App.arrangementDirty = false; updateSaveHistoryButtonState();
   fillGenderModeSelect(); syncFlipButton();
   renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab();
   return true;
@@ -1142,6 +1203,7 @@ function switchRoom(id) {
   saveCurrentClass();
   App.selectedSeat = null; App.multiSelected = new Set();
   App.roomDirty = false; updateRoomDraftBar();
+  App.arrangementDirty = false; updateSaveHistoryButtonState();
   syncFlipButton(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel();
   return true;
 }
@@ -1187,6 +1249,16 @@ function confirmLeaveRoomDraft() {
 // -- Status og div. --
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function setStatus(text) { document.getElementById('statusBar').textContent = text; }
+// Plasseringa er "endra denne økta" frå første elev vert flytta til ho vert
+// lagra til historikk - vernar mot at "har sete før"-åtvaringar og
+// lagre-knappen ropar høgt om ei plassering som berre er arva frå sist gong.
+function markArrangementDirty() {
+  App.arrangementDirty = true;
+  updateSaveHistoryButtonState();
+}
+function updateSaveHistoryButtonState() {
+  document.getElementById('btnSaveHistory').classList.toggle('needs-save', App.arrangementDirty);
+}
 function updateStatusBar() {
   const cls = App.data;
   setStatus(`${cls.students.length} \u00b7 ${Object.keys(cls.arrangement).length}/${allSeatIds(App.room).length} \u00b7 ${Object.keys(App.room.groups).length}`);
@@ -1382,6 +1454,9 @@ function wireEvents() {
   document.getElementById('roomSelect').onchange = e => {
     if (!switchRoom(e.target.value)) document.getElementById('roomSelect').value = App.roomId;
   };
+  document.getElementById('roomSelectSeating').onchange = e => {
+    if (!switchRoom(e.target.value)) document.getElementById('roomSelectSeating').value = App.roomId;
+  };
   document.getElementById('btnNewRoom').onclick = () => {
     const name = prompt(t('newRoomPrompt'), t('newRoom')); if (!name) return;
     const id = Store.createRoom(name, { autoPopulateFor: App.data.students.length });
@@ -1456,6 +1531,7 @@ function wireEvents() {
     const totalSeats = allSeatIds(room).length;
     if (cls.students.length > totalSeats && !confirm(t('tooFewSeats', { students: cls.students.length, seats: totalSeats }))) return;
     cls.arrangement = generateArrangement(room, cls, { genders: cls.genders, genderMode: cls.gender_weight_mode });
+    markArrangementDirty();
     saveCurrentClass(); App.selectedSeat = null;
     renderAllRoomViews(); renderPool(); renderInfoPanel();
     const viol = blacklistViolationSeats(room, cls, cls.arrangement);
@@ -1467,11 +1543,12 @@ function wireEvents() {
   };
   document.getElementById('btnClearArrangement').onclick = () => {
     if (!Object.keys(App.data.arrangement).length || !confirm(t('confirmClearArrangement'))) return;
-    App.data.arrangement = {}; saveCurrentClass(); renderAllRoomViews(); renderPool(); renderInfoPanel();
+    App.data.arrangement = {}; markArrangementDirty(); saveCurrentClass(); renderAllRoomViews(); renderPool(); renderInfoPanel();
   };
   document.getElementById('btnSaveHistory').onclick = () => {
     if (!Object.keys(App.data.arrangement).length) return;
     recordSession(App.data, prompt(t('sessionLabelPrompt'), '') || '');
+    App.arrangementDirty = false; updateSaveHistoryButtonState();
     saveCurrentClass(); renderInfoPanel();
   };
   document.getElementById('genderModeSelect').onchange = e => { App.data.gender_weight_mode = e.target.value; saveCurrentClass(); };
@@ -1492,9 +1569,18 @@ function wireEvents() {
   };
   document.getElementById('btnGenerateGroups').onclick = () => {
     if (!App.data.students.length) { alert(t('noStudents')); return; }
-    App.data.group_assignment = generateTeamGroups(App.data, groupCountFor(App.data));
+    App.data.group_assignment = generateTeamGroups(App.data, groupCountFor(App.data), 'none');
     saveCurrentClass(); renderGroupsTab();
   };
+  document.getElementById('btnGenerateGroupsMenu').onclick = () => {
+    if (!App.data.students.length) { alert(t('noStudents')); return; }
+    const btn = document.getElementById('btnGenerateGroupsMenu'), r = btn.getBoundingClientRect();
+    showMenuAt(r.left, r.bottom + 4, [
+      [t('genderEven'), () => { App.data.group_assignment = generateTeamGroups(App.data, groupCountFor(App.data), 'even'); saveCurrentClass(); renderGroupsTab(); }],
+      [t('genderUneven'), () => { App.data.group_assignment = generateTeamGroups(App.data, groupCountFor(App.data), 'uneven'); saveCurrentClass(); renderGroupsTab(); }],
+    ]);
+  };
+  document.getElementById('btnCopyGroups').onclick = copyGroupsAsText;
   document.getElementById('btnClearGroups').onclick = () => {
     if (!Object.keys(App.data.group_assignment).length) return;
     App.data.group_assignment = {}; saveCurrentClass(); renderGroupsTab();
@@ -1658,6 +1744,7 @@ function init() {
   renderSettingsTab();
   syncAppearancePanel(document.getElementById('appearancePanel'));
   syncAppearancePanel(document.getElementById('appearancePanelSeating'));
+  updateSaveHistoryButtonState();
   applyPanelCollapseState();
   updateZoomLabel('Room'); updateZoomLabel('Seat');
 

@@ -21,7 +21,7 @@ function newClassData() {
     version: CLASS_VERSION, room_id: null, students: [], locked: {}, arrangement: {},
     sessions: [], blacklist: [], genders: {}, gender_weight_mode: 'ingen',
     room_states: {}, // andre (ikkje-aktive) rom denne klassen har brukt: romId -> {arrangement, locked, sessions}
-    group_settings: { mode: 'count', value: 4 }, group_assignment: {}, // Grupper-fana (uavhengig av rom)
+    group_settings: { mode: 'count', value: 4 }, group_assignment: {}, group_names: {}, // Grupper-fana (uavhengig av rom)
   };
 }
 // Lagra tilstanden (plassering/lås/historikk) for det NO aktive romet unna,
@@ -238,16 +238,30 @@ function groupCountFor(cls) {
 }
 // Fordel elevane tilfeldig i N grupper, med restart for å unngå svartelista par
 // i same gruppe der det er mogleg.
-function generateTeamGroups(cls, groupCount) {
+// genderMode: 'none' (kun tilfeldig), 'even' (kvar gruppe skal ha ei jamn
+// blanding av kjønn), 'uneven' (kvar gruppe skal helst vere einsarta).
+// Svarteliste vert alltid vekta tyngst og har alltid førsteprioritet.
+function generateTeamGroups(cls, groupCount, genderMode = 'none') {
   const blSet = blacklistSet(cls), n = Math.max(1, groupCount);
   let best = null, bestScore = Infinity;
-  for (let attempt = 0; attempt < 250; attempt++) {
+  for (let attempt = 0; attempt < 300; attempt++) {
     const shuffled = shuffle([...cls.students]);
     const groups = Array.from({ length: n }, () => []);
     shuffled.forEach((name, i) => groups[i % n].push(name));
     let score = 0;
     for (const g of groups) for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++)
-      if (blSet.has([g[i], g[j]].sort().join('||'))) score++;
+      if (blSet.has([g[i], g[j]].sort().join('||'))) score += 1000;
+    if (genderMode !== 'none') {
+      for (const g of groups) {
+        const girls = g.filter(s => cls.genders[s] === 'Jente').length;
+        const boys = g.filter(s => cls.genders[s] === 'Gut').length;
+        const total = girls + boys;
+        if (total > 0) {
+          const diff = Math.abs(girls - boys);
+          score += genderMode === 'even' ? diff : (total - diff);
+        }
+      }
+    }
     if (score < bestScore) { bestScore = score; best = groups; if (bestScore === 0) break; }
   }
   const assignment = {};
@@ -516,6 +530,7 @@ function normalizeClassData(raw) {
   cls.room_states = raw.room_states || {};
   cls.group_settings = raw.group_settings || { mode: 'count', value: 4 };
   cls.group_assignment = raw.group_assignment || {};
+  cls.group_names = raw.group_names || {};
 
   const version = raw.version || 1;
   if (version >= CLASS_VERSION) {
