@@ -1,46 +1,24 @@
-# Klasseromplassering (nettversjon)
+# Classroom - a tool that may aid teachers in setting up their classroom and groups.
+
+Up-front - this app is vibe-coded with Claude. I will not pass this up as my own work.
+It has still taken time to put together.
 
 https://klasserom.allbrass.no/
 
-Statisk nettside – ingen server, ingen installasjon. Alt lagrar seg i
-nettlesaren (localStorage) på eininga du brukar.
+If you're like me - you forget whos been seated where and with who, this tool might be for you.
 
-Denne programvara er i stor grad vibe-koda med Claude.
+I've tried a few websites that were trying to solve this problem, but there was always a few things I didn't like.
+This tool utilises a few extra bits and bobs.
+We all have the students that shouldn't sit together, well, in this tool there is a avoid list.
 
-## Hoste på nett
-Last opp dei fem filene (`index.html`, `style.css`, `core.js`, `i18n.js`,
-`app.js`) til t.d. GitHub Pages, Netlify eller Cloudflare Pages. Ingen
-byggjesteg, ingen bakgrunnstenester.
+You may still manually seat those students together through dragging and dropping, but here you will get a sane starting point.
 
-## Viktig om lagring
-Data (klassar, elevar, historikk, innstillingar) lagrar seg i
-nettlesaren sin localStorage – bunde til denne eininga/nettlesaren.
-Bytter du eining, bruk **Last ned fil** / **Last opp fil** (Klasse-fana)
-for å flytte ein klasse over. Ingen elevdata blir sende til nokon
-server.
+Eventually, if not already, it will also have a groups tab, where you can create groups with the same lists that you put in earlier.
 
-## Struktur
-- `index.html` – sidestruktur, fire faner
-- `style.css` – tema (CSS-variablar), utsjånad
-- `core.js` – datamodell, algoritme, localStorage
-- `i18n.js` – tekstar (nynorsk/bokmål/engelsk)
-- `app.js` – all appstyring, teikning, drag, dialogar
+- Support for multiple classes and classrooms.
+- Ability to place based on gender.
+- History function; see where individual students where placed before, with whom, and see the whole class history. Important that you save places to history for this to function.
+- Picture preview can be used dooring seat swaps - it can be flipped for easier student readability.
+- Everything is locally stored. This is very much a pro, but also a con for the workflow between multiple teachers. Or if you use multiple computers/browsers.
 
-## Funksjonar
-Same funksjonalitet som skrivebordsversjonen (bordgrupper, svarteliste,
-kjønnsvekting, historikk, soner, vend visning), pluss:
-- Fire faner: Klasse, Klasserom, Plassering, Innstillingar
-- **Rom skilt frå klasse**: eit rom (bordgrupper/soner) kan brukast av
-  fleire klassar, og du kan byte rom for ei klasse når som helst
-  (Klasserom-fana). Slettar du eit rom som er i bruk, får dei råka
-  klassane automatisk eit nytt, tomt rom.
-- Nye rom kan autofyllast med parbord ut frå elevtalet
-- Slå saman/skil ut bordgrupper (Ctrl+klikk fleire plassar)
-- Fleire klassar, med standardklasse
-- Språkbyte: nynorsk / bokmål / engelsk
-- Fullstendige tema (lys/mørk/Catppuccin), fargeval, bakgrunnsbilete,
-  uskarpheit/gjennomsikt på pultar, skalering av grensesnitt/tekst,
-  manuell pultstorleik
-- Endre storleik på/minimer elevliste- og historikkpanelet
-- PNG-eksport med gjeldande tema/bakgrunnsbilete, og valfri
-  dato/tid/veke/klassenamn på biletet
+If you want to host it on your own, pull the files or fork the repo and upload them to whereever that allows you to make a website.
