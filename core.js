@@ -21,6 +21,7 @@ function newClassData() {
     version: CLASS_VERSION, room_id: null, students: [], locked: {}, arrangement: {},
     sessions: [], blacklist: [], genders: {}, gender_weight_mode: 'ingen',
     room_states: {}, // andre (ikkje-aktive) rom denne klassen har brukt: romId -> {arrangement, locked, sessions}
+    group_settings: { mode: 'count', value: 4 }, group_assignment: {}, // Grupper-fana (uavhengig av rom)
   };
 }
 // Lagra tilstanden (plassering/lås/historikk) for det NO aktive romet unna,
@@ -194,6 +195,26 @@ function removeStudent(cls, name) {
   for (const [sid, n] of Object.entries(cls.arrangement)) if (n === name) delete cls.arrangement[sid];
   cls.blacklist = cls.blacklist.filter(p => !p.includes(name));
   delete cls.genders[name];
+  delete cls.group_assignment[name];
+}
+// Endre namnet på ein elev over alt han er nemnd (plassering, historikk,
+// svarteliste, kjønn, gruppe, arkiverte rom-tilstandar).
+function renameStudent(cls, oldName, newName) {
+  newName = (newName || '').trim();
+  if (!newName || newName === oldName || cls.students.includes(newName)) return false;
+  const idx = cls.students.indexOf(oldName);
+  if (idx === -1) return false;
+  cls.students[idx] = newName;
+  if (cls.genders[oldName]) { cls.genders[newName] = cls.genders[oldName]; delete cls.genders[oldName]; }
+  if (cls.group_assignment[oldName] !== undefined) { cls.group_assignment[newName] = cls.group_assignment[oldName]; delete cls.group_assignment[oldName]; }
+  for (const sid of Object.keys(cls.arrangement)) if (cls.arrangement[sid] === oldName) cls.arrangement[sid] = newName;
+  cls.blacklist = cls.blacklist.map(([a, b]) => [a === oldName ? newName : a, b === oldName ? newName : b]);
+  for (const sess of cls.sessions) for (const sid of Object.keys(sess.arrangement)) if (sess.arrangement[sid] === oldName) sess.arrangement[sid] = newName;
+  for (const rs of Object.values(cls.room_states || {})) {
+    for (const sid of Object.keys(rs.arrangement || {})) if (rs.arrangement[sid] === oldName) rs.arrangement[sid] = newName;
+    for (const sess of rs.sessions || []) for (const sid of Object.keys(sess.arrangement)) if (sess.arrangement[sid] === oldName) sess.arrangement[sid] = newName;
+  }
+  return true;
 }
 
 // -- Konsistens (rom+klasse) --
@@ -206,6 +227,32 @@ function ensureConsistency(r, cls) {
   const students = new Set(cls.students);
   cls.blacklist = cls.blacklist.filter(([a, b]) => students.has(a) && students.has(b));
   for (const k of Object.keys(cls.genders)) if (!students.has(k)) delete cls.genders[k];
+  for (const k of Object.keys(cls.group_assignment || {})) if (!students.has(k)) delete cls.group_assignment[k];
+}
+
+// -- Grupper (uavhengig av rom/sete-geometri) --
+function groupCountFor(cls) {
+  const gs = cls.group_settings || { mode: 'count', value: 4 };
+  const n = Math.max(1, cls.students.length);
+  return gs.mode === 'size' ? Math.max(1, Math.ceil(n / Math.max(1, gs.value))) : Math.max(1, gs.value);
+}
+// Fordel elevane tilfeldig i N grupper, med restart for å unngå svartelista par
+// i same gruppe der det er mogleg.
+function generateTeamGroups(cls, groupCount) {
+  const blSet = blacklistSet(cls), n = Math.max(1, groupCount);
+  let best = null, bestScore = Infinity;
+  for (let attempt = 0; attempt < 250; attempt++) {
+    const shuffled = shuffle([...cls.students]);
+    const groups = Array.from({ length: n }, () => []);
+    shuffled.forEach((name, i) => groups[i % n].push(name));
+    let score = 0;
+    for (const g of groups) for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++)
+      if (blSet.has([g[i], g[j]].sort().join('||'))) score++;
+    if (score < bestScore) { bestScore = score; best = groups; if (bestScore === 0) break; }
+  }
+  const assignment = {};
+  (best || []).forEach((g, idx) => g.forEach(name => assignment[name] = idx));
+  return assignment;
 }
 
 // -- Svarteliste (klasse) --
@@ -467,6 +514,8 @@ function normalizeClassData(raw) {
   cls.genders = raw.genders || {};
   cls.gender_weight_mode = raw.gender_weight_mode || 'ingen';
   cls.room_states = raw.room_states || {};
+  cls.group_settings = raw.group_settings || { mode: 'count', value: 4 };
+  cls.group_assignment = raw.group_assignment || {};
 
   const version = raw.version || 1;
   if (version >= CLASS_VERSION) {
@@ -580,8 +629,12 @@ const Store = {
 
   // -- innstillingar / språk --
   getSettings() {
-    try { return { ...defaultSettings(), ...JSON.parse(localStorage.getItem(LS_SETTINGS)) }; }
-    catch { return defaultSettings(); }
+    const THEME_MIGRATE = { lys: 'latte', mork: 'mocha', catppuccin_mocha: 'mocha', catppuccin_latte: 'latte' };
+    try {
+      const s = { ...defaultSettings(), ...JSON.parse(localStorage.getItem(LS_SETTINGS)) };
+      if (THEME_MIGRATE[s.theme]) s.theme = THEME_MIGRATE[s.theme];
+      return s;
+    } catch { return defaultSettings(); }
   },
   saveSettings(s) { localStorage.setItem(LS_SETTINGS, JSON.stringify(s)); },
   getLang() { return localStorage.getItem(LS_LANG) || 'nn'; },
@@ -589,8 +642,9 @@ const Store = {
 };
 
 function defaultSettings() {
-  return { accent: '#2563eb', radius: 12, bgImage: null, blur: 8, opacity: 0.85,
-           uiScale: 1, fontScale: 1, theme: 'lys', seatSizeOverride: null,
+  return { accent: '#1e66f5', radius: 12, bgImage: null, blur: 8, opacity: 0.85,
+           uiScale: 1, fontScale: 1, theme: 'latte', seatSizeOverride: null,
            exportDate: false, exportTime: false, exportWeek: false, exportClassName: false,
-           poolCollapsed: false, infoCollapsed: false };
+           exportWhiteBg: false,
+           poolCollapsed: false, infoCollapsed: false, groupPoolCollapsed: false };
 }

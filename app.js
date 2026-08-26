@@ -5,7 +5,6 @@
 // ===================================================================
 
 const MARGIN = 20, BOARD_H = 30, GROUP_GAP = 40, DRAG_T = 6, SNAP = 20;
-const ACCENT_PRESETS = ['#2563eb', '#16a34a', '#7c3aed', '#ea580c', '#db2777', '#475569'];
 
 const App = {
   classId: null, data: null,
@@ -444,6 +443,24 @@ function openMenuForSelection() {
   const r = btn.getBoundingClientRect();
   showMenuAt(r.left, r.bottom + 4, buildSeatMenuItems(sid));
 }
+// Popover for romutsjånad (avrunding/uskarpheit/gjennomsikt/pultstorleik) i
+// Plassering-fana - kan justerast mens romet er synleg i bakgrunnen.
+function syncAppearancePanel() {
+  const s = App.settings;
+  document.getElementById('rapRadius').value = s.radius;
+  document.getElementById('rapBlur').value = s.blur;
+  document.getElementById('rapOpacity').value = s.opacity;
+  document.getElementById('rapSeatAuto').checked = !s.seatSizeOverride;
+  document.getElementById('rapSeatSize').value = s.seatSizeOverride || SEAT_W;
+  document.getElementById('rapSeatSize').disabled = !s.seatSizeOverride;
+}
+function toggleAppearancePanel() {
+  const panel = document.getElementById('appearancePanel');
+  const show = !panel.classList.contains('show');
+  panel.classList.toggle('show', show);
+  document.getElementById('btnRoomAppearance').classList.toggle('active', show);
+  if (show) syncAppearancePanel();
+}
 function clearSelection() {
   App.multiSelected = new Set();
   App.selectedSeat = null;
@@ -662,7 +679,7 @@ function exportTitleLine() {
 // ingen soner, lås eller åtvaringar) til eit gjeve canvas. `flipped` er
 // uavhengig av romet sitt gjeldande view_flipped, slik at førehandsvising
 // kan snuast utan å påverke sjølve romet.
-async function drawSeatingChart(canvas, flipped, arrangementOverride, titleOverride) {
+async function drawSeatingChart(canvas, flipped, arrangementOverride, titleOverride, whiteBg) {
   const room = App.room, cls = App.data, { w: seatW, h: seatH } = computeSeatSize(cls.students);
   const arrangement = arrangementOverride || cls.arrangement;
   const layoutRoom = { groups: room.groups, view_flipped: flipped };
@@ -672,15 +689,15 @@ async function drawSeatingChart(canvas, flipped, arrangementOverride, titleOverr
   const ctx = canvas.getContext('2d');
 
   const cs = getComputedStyle(document.documentElement);
-  const pageBg = cs.getPropertyValue('--page-bg').trim() || '#eef2f7';
-  const ink = cs.getPropertyValue('--ink').trim() || '#111827';
-  const muted = cs.getPropertyValue('--muted').trim() || '#9ca3af';
-  const panelBg = cs.getPropertyValue('--panel-bg').trim() || '#ffffff';
-  const panelBorder = cs.getPropertyValue('--panel-border').trim() || '#d1d5db';
+  const pageBg = whiteBg ? '#ffffff' : (cs.getPropertyValue('--page-bg').trim() || '#eef2f7');
+  const ink = whiteBg ? '#111827' : (cs.getPropertyValue('--ink').trim() || '#111827');
+  const muted = whiteBg ? '#6b7280' : (cs.getPropertyValue('--muted').trim() || '#9ca3af');
+  const panelBg = whiteBg ? '#ffffff' : (cs.getPropertyValue('--panel-bg').trim() || '#ffffff');
+  const panelBorder = whiteBg ? '#d1d5db' : (cs.getPropertyValue('--panel-border').trim() || '#d1d5db');
 
   ctx.fillStyle = pageBg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  if (App.settings.bgImage) {
+  if (!whiteBg && App.settings.bgImage) {
     await new Promise(resolve => {
       const img = new Image();
       img.onload = () => {
@@ -714,15 +731,16 @@ async function drawSeatingChart(canvas, flipped, arrangementOverride, titleOverr
 }
 async function exportImage() {
   const canvas = document.createElement('canvas');
-  await drawSeatingChart(canvas, App.room.view_flipped);
+  await drawSeatingChart(canvas, App.room.view_flipped, null, null, App.settings.exportWhiteBg);
   downloadDataUrl(canvas.toDataURL('image/png'), 'klasseromplassering.png');
 }
 async function openImagePreviewModal() {
-  let flipped = App.room.view_flipped;
+  let flipped = App.room.view_flipped, whiteBg = !!App.settings.exportWhiteBg;
   const modal = openModal(`
     <h2>${t('previewTitle')}</h2>
-    <div class="row" style="margin-bottom:.6rem">
+    <div class="row" style="margin-bottom:.6rem; flex-wrap:wrap">
       <button id="pvFlip">${t('previewFlip')}</button>
+      <label class="row"><input type="checkbox" id="pvWhiteBg" ${whiteBg ? 'checked' : ''}> ${t('exportWhiteBgLbl')}</label>
       <button id="pvDownload" class="primary">${t('exportImage')}</button>
       <span class="spacer"></span>
       <button id="pvClose">${t('close')}</button>
@@ -732,9 +750,12 @@ async function openImagePreviewModal() {
     </div>`);
   modal.style.maxWidth = '92vw';
   const canvas = modal.querySelector('#pvCanvas');
-  const redraw = async () => { await drawSeatingChart(canvas, flipped); };
+  const redraw = async () => { await drawSeatingChart(canvas, flipped, null, null, whiteBg); };
   await redraw();
   modal.querySelector('#pvFlip').onclick = async () => { flipped = !flipped; await redraw(); };
+  modal.querySelector('#pvWhiteBg').onchange = async e => {
+    whiteBg = e.target.checked; App.settings.exportWhiteBg = whiteBg; Store.saveSettings(App.settings); await redraw();
+  };
   modal.querySelector('#pvDownload').onclick = () => downloadDataUrl(canvas.toDataURL('image/png'), 'klasseromplassering.png');
   modal.querySelector('#pvClose').onclick = closeModal;
 }
@@ -797,6 +818,97 @@ function renderPool() {
   if (!unseated.length) wrap.innerHTML = `<p class="hint">${t('allSeated')}</p>`;
   else if (!shown.length) wrap.innerHTML = `<p class="hint">${t('noMatch')}</p>`;
 }
+
+// -- Grupper-fana: fordel elevar i N grupper, uavhengig av rom/sete-geometri --
+function renderGroupsTab() {
+  document.getElementById('groupModeSelect').value = App.data.group_settings.mode;
+  document.getElementById('groupValueInput').value = App.data.group_settings.value;
+  renderGroupPool();
+  renderGroupCards();
+}
+function renderGroupPool() {
+  const wrap = document.getElementById('groupPoolList'); wrap.innerHTML = '';
+  const assigned = App.data.group_assignment || {};
+  const unassigned = App.data.students.filter(n => assigned[n] === undefined);
+  for (const name of unassigned) {
+    const el = document.createElement('div');
+    el.className = 'pool-item' + (App.armedStudent === name ? ' armed' : '');
+    el.textContent = name;
+    attachGroupItemEvents(el, name);
+    wrap.appendChild(el);
+  }
+  if (!App.data.students.length) wrap.innerHTML = `<p class="hint">${t('noStudents')}</p>`;
+  else if (!unassigned.length) wrap.innerHTML = `<p class="hint">${t('allGrouped')}</p>`;
+}
+function renderGroupCards() {
+  const wrap = document.getElementById('groupsCanvas'); wrap.innerHTML = '';
+  const n = groupCountFor(App.data), assigned = App.data.group_assignment || {};
+  for (let i = 0; i < n; i++) {
+    const members = App.data.students.filter(s => assigned[s] === i);
+    const card = document.createElement('div'); card.className = 'group-card';
+    const head = document.createElement('h4');
+    head.innerHTML = `${t('groupLabel', { n: i + 1 })} <span class="hint">(${members.length})</span>`;
+    card.appendChild(head);
+    const memWrap = document.createElement('div'); memWrap.className = 'group-members'; memWrap.dataset.group = i;
+    for (const name of members) {
+      const el = document.createElement('div');
+      el.className = 'pool-item' + (App.armedStudent === name ? ' armed' : '');
+      el.textContent = name;
+      attachGroupItemEvents(el, name);
+      memWrap.appendChild(el);
+    }
+    memWrap.addEventListener('click', e => { if (!e.target.closest('.pool-item')) handleGroupTargetClick(i); });
+    card.appendChild(memWrap);
+    wrap.appendChild(card);
+  }
+}
+function attachGroupItemEvents(el, name) { el.addEventListener('pointerdown', e => onGroupItemPointerDown(e, name)); }
+function onGroupItemPointerDown(e, name) {
+  if (e.button !== 0) return; e.preventDefault();
+  const el = e.currentTarget;
+  App.drag = { kind: 'groupmember', name, startX: e.clientX, startY: e.clientY, dragging: false };
+  el.setPointerCapture(e.pointerId);
+  el.addEventListener('pointermove', onGroupItemPointerMove);
+  el.addEventListener('pointerup', onGroupItemPointerUp);
+}
+function onGroupItemPointerMove(e) {
+  const drag = App.drag; if (!drag) return;
+  const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+  if (!drag.dragging) { if (Math.abs(dx) < DRAG_T && Math.abs(dy) < DRAG_T) return; drag.dragging = true; startGhost(drag.name); }
+  moveGhost(e.clientX, e.clientY);
+}
+function onGroupItemPointerUp(e) {
+  const el = e.currentTarget;
+  el.releasePointerCapture(e.pointerId);
+  el.removeEventListener('pointermove', onGroupItemPointerMove);
+  el.removeEventListener('pointerup', onGroupItemPointerUp);
+  const drag = App.drag; App.drag = null; if (!drag) return;
+  destroyGhost();
+  if (drag.dragging) {
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    const groupEl = target && target.closest('.group-members');
+    const poolEl = target && target.closest('#groupPoolList');
+    if (groupEl) assignToGroup(drag.name, parseInt(groupEl.dataset.group));
+    else if (poolEl) unassignFromGroup(drag.name);
+  } else {
+    App.armedStudent = (App.armedStudent === drag.name) ? null : drag.name;
+    renderGroupsTab();
+  }
+}
+function handleGroupTargetClick(groupIdx) {
+  if (!App.armedStudent) return;
+  assignToGroup(App.armedStudent, groupIdx);
+}
+function assignToGroup(name, groupIdx) {
+  App.data.group_assignment[name] = groupIdx;
+  App.armedStudent = null;
+  saveCurrentClass(); renderGroupsTab();
+}
+function unassignFromGroup(name) {
+  delete App.data.group_assignment[name];
+  App.armedStudent = null;
+  saveCurrentClass(); renderGroupsTab();
+}
 function renderStudentHistory(panel, name, showHeader) {
   const room = App.room, cls = App.data;
   if (showHeader) panel.innerHTML += `<h3>${escapeHtml(name)}</h3>`;
@@ -858,29 +970,50 @@ function renderClassTab() {
   for (const c of classes) sel.appendChild(new Option(c.name, c.id));
   sel.value = App.classId;
 
-  document.getElementById('studentsText').value = App.data.students.join('\n');
-  renderGenderList();
+  renderStudentRows();
   renderBlacklistUI();
 }
-function renderGenderList() {
-  const wrap = document.getElementById('genderList'); wrap.innerHTML = '';
+function renderStudentRows() {
+  const wrap = document.getElementById('studentRows'); wrap.innerHTML = '';
   const opts = [['', '\u2013', t('genderNone')], ['Jente', 'J', t('genderGirl')], ['Gut', 'G', t('genderBoy')], ['Anna', 'A', t('genderOther')]];
   for (const name of App.data.students) {
-    const row = document.createElement('div'); row.className = 'gender-row';
-    const label = document.createElement('span'); label.className = 'name'; label.textContent = name;
-    row.appendChild(label);
+    const row = document.createElement('div'); row.className = 'student-row';
+    const input = document.createElement('input'); input.type = 'text'; input.className = 'name-input'; input.value = name;
+    input.onchange = () => {
+      const newName = input.value.trim();
+      if (!newName) { input.value = name; return; }
+      if (newName === name) return;
+      if (!renameStudent(App.data, name, newName)) { input.value = name; alert(t('duplicateStudentName')); return; }
+      saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab();
+    };
+    row.appendChild(input);
     const current = App.data.genders[name] || '';
     for (const [val, short, full] of opts) {
       const optLabel = document.createElement('label'); optLabel.className = 'gender-radio'; optLabel.title = full;
-      const input = document.createElement('input');
-      input.type = 'radio'; input.name = 'gender_' + name; input.checked = current === val;
-      input.onchange = () => { if (val) App.data.genders[name] = val; else delete App.data.genders[name]; saveCurrentClass(); };
-      optLabel.appendChild(input); optLabel.appendChild(document.createTextNode(short));
+      const radio = document.createElement('input');
+      radio.type = 'radio'; radio.name = 'gender_' + name; radio.checked = current === val;
+      radio.onchange = () => { if (val) App.data.genders[name] = val; else delete App.data.genders[name]; saveCurrentClass(); };
+      optLabel.appendChild(radio); optLabel.appendChild(document.createTextNode(short));
       row.appendChild(optLabel);
     }
+    const rm = document.createElement('button'); rm.className = 'rm-btn'; rm.textContent = '\u00d7'; rm.title = t('removeStudent');
+    rm.onclick = () => {
+      if (!confirm(t('confirmRemoveStudent', { name }))) return;
+      removeStudent(App.data, name);
+      ensureConsistency(App.room, App.data);
+      saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab();
+    };
+    row.appendChild(rm);
     wrap.appendChild(row);
   }
   if (!App.data.students.length) wrap.innerHTML = `<p class="hint">${t('noStudents')}</p>`;
+}
+function addStudentsFromText(text) {
+  const cls = App.data, existing = new Set(cls.students);
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  let added = 0;
+  for (const name of lines) if (!existing.has(name)) { cls.students.push(name); existing.add(name); added++; }
+  return added;
 }
 function renderBlacklistUI() {
   const cls = App.data, sel = document.getElementById('blPickA');
@@ -960,7 +1093,7 @@ function switchClass(id) {
   App.selectedSeat = null; App.selectedStudent = null; App.multiSelected = new Set(); App.armedStudent = null;
   App.roomDirty = false; updateRoomDraftBar();
   fillGenderModeSelect(); syncFlipButton();
-  renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel();
+  renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab();
   return true;
 }
 function switchRoom(id) {
@@ -1037,18 +1170,18 @@ function fillGenderModeSelect() {
 
 // -- Tema (fullstendige fargesett - lys/mørk/Catppuccin) --
 const THEMES = {
-  lys: { page: '#eef2f7', ink: '#111827', muted: '#6b7280', panel: '#ffffff', border: '#e5e7eb',
-         input: '#ffffff', row: '#f9fafb', rowActive: '#dbeafe', glass: '255,255,255',
-         header: 'rgba(17,24,39,.92)', accent: '#2563eb' },
-  mork: { page: '#0f172a', ink: '#e5e7eb', muted: '#94a3b8', panel: '#1e293b', border: '#334155',
-          input: '#1e293b', row: '#243244', rowActive: '#1e3a5f', glass: '30,41,59',
-          header: 'rgba(2,6,23,.92)', accent: '#3b82f6' },
-  catppuccin_mocha: { page: '#1e1e2e', ink: '#cdd6f4', muted: '#a6adc8', panel: '#181825', border: '#313244',
-          input: '#313244', row: '#313244', rowActive: '#45475a', glass: '24,24,37',
-          header: 'rgba(17,17,27,.92)', accent: '#89b4fa' },
-  catppuccin_latte: { page: '#eff1f5', ink: '#4c4f69', muted: '#6c6f85', panel: '#ffffff', border: '#ccd0da',
-          input: '#e6e9ef', row: '#e6e9ef', rowActive: '#ccd0da', glass: '255,255,255',
-          header: 'rgba(76,79,105,.92)', accent: '#1e66f5' },
+  latte: { page: '#dce0e8', ink: '#4c4f69', muted: '#6c6f85', panel: '#e6e9ef', border: '#acb0be',
+           input: '#eff1f5', row: '#ccd0da', rowActive: '#bcc0cc', glass: '239,241,245',
+           header: 'rgba(76,79,105,.92)', accent: '#1e66f5' },
+  frappe: { page: '#232634', ink: '#c6d0f5', muted: '#a5adce', panel: '#292c3c', border: '#51576d',
+            input: '#414559', row: '#414559', rowActive: '#51576d', glass: '48,52,70',
+            header: 'rgba(35,38,52,.92)', accent: '#8caaee' },
+  macchiato: { page: '#181926', ink: '#cad3f5', muted: '#a5adcb', panel: '#1e2030', border: '#494d64',
+               input: '#363a4f', row: '#363a4f', rowActive: '#494d64', glass: '36,39,58',
+               header: 'rgba(24,25,38,.92)', accent: '#8aadf4' },
+  mocha: { page: '#11111b', ink: '#cdd6f4', muted: '#a6adc8', panel: '#181825', border: '#45475a',
+           input: '#313244', row: '#313244', rowActive: '#45475a', glass: '30,30,46',
+           header: 'rgba(17,17,27,.92)', accent: '#89b4fa' },
 };
 function shade(hex, pct) {
   const n = parseInt(hex.slice(1), 16);
@@ -1057,12 +1190,12 @@ function shade(hex, pct) {
   return '#' + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1);
 }
 function applySettings(s) {
-  const root = document.documentElement.style, th = THEMES[s.theme] || THEMES.lys;
+  const root = document.documentElement.style, th = THEMES[s.theme] || THEMES.latte;
   root.setProperty('--page-bg', th.page); root.setProperty('--ink', th.ink); root.setProperty('--muted', th.muted);
   root.setProperty('--panel-bg', th.panel); root.setProperty('--panel-border', th.border);
   root.setProperty('--input-bg', th.input); root.setProperty('--row-bg', th.row); root.setProperty('--row-active', th.rowActive);
   root.setProperty('--glass-rgb', th.glass); root.setProperty('--header-bg', th.header);
-  root.setProperty('--accent', s.accent); root.setProperty('--accent-dark', shade(s.accent, -15));
+  root.setProperty('--accent', th.accent); root.setProperty('--accent-dark', shade(th.accent, -15));
   root.setProperty('--radius', s.radius + 'px'); root.setProperty('--blur', s.blur + 'px');
   root.setProperty('--opacity', s.opacity); root.setProperty('--ui-scale', s.uiScale); root.setProperty('--font-scale', s.fontScale);
   root.setProperty('--bg-image', s.bgImage ? `url(${s.bgImage})` : 'none');
@@ -1075,24 +1208,11 @@ function renderSettingsTab() {
     const c = document.createElement('div'); c.className = 'theme-card' + (s.theme === key ? ' active' : '');
     c.title = t('theme_' + key);
     c.innerHTML = `<div class="sw1" style="background:${th.page}"></div><div class="sw2" style="background:${th.panel}"></div>`;
-    c.onclick = () => { s.theme = key; s.accent = th.accent; Store.saveSettings(s); applySettings(s); renderSettingsTab(); };
+    c.onclick = () => { s.theme = key; Store.saveSettings(s); applySettings(s); renderSettingsTab(); };
     cards.appendChild(c);
   }
-  const sw = document.getElementById('accentSwatches'); sw.innerHTML = '';
-  for (const c of ACCENT_PRESETS) {
-    const d = document.createElement('div'); d.className = 'swatch' + (s.accent === c ? ' active' : ''); d.style.background = c;
-    d.onclick = () => { s.accent = c; Store.saveSettings(s); applySettings(s); renderSettingsTab(); };
-    sw.appendChild(d);
-  }
-  document.getElementById('accentCustom').value = s.accent;
-  document.getElementById('radiusRange').value = s.radius;
-  document.getElementById('blurRange').value = s.blur;
-  document.getElementById('opacityRange').value = s.opacity;
   document.getElementById('uiScaleRange').value = s.uiScale;
   document.getElementById('fontScaleRange').value = s.fontScale;
-  document.getElementById('seatSizeRange').value = s.seatSizeOverride || SEAT_W;
-  document.getElementById('seatSizeAuto').checked = !s.seatSizeOverride;
-  document.getElementById('seatSizeRange').disabled = !s.seatSizeOverride;
   document.getElementById('bgPreview').style.backgroundImage = s.bgImage ? `url(${s.bgImage})` : 'none';
   document.getElementById('exportDate').checked = !!s.exportDate;
   document.getElementById('exportTime').checked = !!s.exportTime;
@@ -1109,15 +1229,16 @@ function toggleSidePanel(el, key) {
 function updateCollapseIcon(el) {
   const btn = el.querySelector('.collapse-btn');
   const collapsed = el.classList.contains('collapsed');
-  const isLeftPanel = el.id === 'poolPanel'; // ligg til venstre - utvidar mot høgre
+  const isLeftPanel = el.id === 'poolPanel' || el.id === 'groupPoolPanel'; // ligg til venstre - utvidar mot høgre
   btn.textContent = collapsed ? (isLeftPanel ? '\u25B6' : '\u25C0') : (isLeftPanel ? '\u25C0' : '\u25B6');
   btn.title = collapsed ? t('expandPanel') : t('collapsePanel');
 }
 function applyPanelCollapseState() {
-  const pool = document.getElementById('poolPanel'), info = document.getElementById('infoPanelWrap');
+  const pool = document.getElementById('poolPanel'), info = document.getElementById('infoPanelWrap'), gpool = document.getElementById('groupPoolPanel');
   pool.classList.toggle('collapsed', !!App.settings.poolCollapsed);
   info.classList.toggle('collapsed', !!App.settings.infoCollapsed);
-  updateCollapseIcon(pool); updateCollapseIcon(info);
+  gpool.classList.toggle('collapsed', !!App.settings.groupPoolCollapsed);
+  updateCollapseIcon(pool); updateCollapseIcon(info); updateCollapseIcon(gpool);
 }
 
 // -- Språk --
@@ -1195,21 +1316,29 @@ function wireEvents() {
     if (switchClass(e.target.value)) renderClassTab(); else document.getElementById('classSelect').value = App.classId;
   };
 
-  document.getElementById('btnSaveStudents').onclick = () => {
-    const raw = document.getElementById('studentsText').value.split('\n');
-    const seen = new Set(), list = [];
-    for (const line of raw) { const n = line.trim(); if (n && !seen.has(n)) { seen.add(n); list.push(n); } }
-    const removed = App.data.students.filter(s => !list.includes(s));
-    for (const r of removed) for (const [sid, name] of Object.entries(App.data.arrangement)) if (name === r) delete App.data.arrangement[sid];
-    App.data.students = list; ensureConsistency(App.room, App.data);
-    saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderInfoPanel();
+  document.getElementById('btnAddStudent').onclick = () => {
+    const input = document.getElementById('newStudentInput');
+    if (!input.value.trim()) return;
+    addStudentsFromText(input.value);
+    input.value = '';
+    saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderGroupsTab();
   };
+  document.getElementById('newStudentInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('btnAddStudent').click(); }
+  });
+  document.getElementById('newStudentInput').addEventListener('paste', e => {
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    if (text.includes('\n')) {
+      e.preventDefault();
+      addStudentsFromText(text);
+      saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderGroupsTab();
+    }
+  });
   document.getElementById('btnImportStudents').onclick = () => document.getElementById('importStudentsFile').click();
   document.getElementById('importStudentsFile').onchange = async e => {
     const file = e.target.files[0]; if (!file) return;
-    const text = await file.text();
-    const cur = document.getElementById('studentsText').value.trim();
-    document.getElementById('studentsText').value = (cur ? cur + '\n' : '') + text.split('\n').map(l => l.trim()).filter(Boolean).join('\n');
+    addStudentsFromText(await file.text());
+    saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderGroupsTab();
     e.target.value = '';
   };
   document.getElementById('blPickA').onchange = renderBlacklistChecklist;
@@ -1260,6 +1389,19 @@ function wireEvents() {
   };
   document.getElementById('btnMergeGroups').onclick = doMergeSelectedGroups;
   document.getElementById('btnSplitGroups').onclick = doSplitSelectedSeats;
+  document.getElementById('btnRoomAppearance').onclick = toggleAppearancePanel;
+  document.getElementById('appearanceCloseBtn').onclick = () => {
+    document.getElementById('appearancePanel').classList.remove('show');
+    document.getElementById('btnRoomAppearance').classList.remove('active');
+  };
+  document.getElementById('rapRadius').oninput = e => { App.settings.radius = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
+  document.getElementById('rapBlur').oninput = e => { App.settings.blur = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
+  document.getElementById('rapOpacity').oninput = e => { App.settings.opacity = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
+  document.getElementById('rapSeatAuto').onchange = e => {
+    App.settings.seatSizeOverride = e.target.checked ? null : parseInt(document.getElementById('rapSeatSize').value);
+    Store.saveSettings(App.settings); document.getElementById('rapSeatSize').disabled = e.target.checked; renderAllRoomViews();
+  };
+  document.getElementById('rapSeatSize').oninput = e => { App.settings.seatSizeOverride = +e.target.value; Store.saveSettings(App.settings); renderAllRoomViews(); };
   document.getElementById('btnSaveRoomDraft').onclick = saveRoomDraft;
   document.getElementById('btnDiscardRoomDraft').onclick = discardRoomDraft;
   document.getElementById('btnFlipRoom').onclick = () => {
@@ -1310,21 +1452,29 @@ function wireEvents() {
   document.getElementById('poolCollapseBtn').onclick = () => toggleSidePanel(document.getElementById('poolPanel'), 'poolCollapsed');
   document.getElementById('infoCollapseBtn').onclick = () => toggleSidePanel(document.getElementById('infoPanelWrap'), 'infoCollapsed');
 
+  // -- Grupper-fane --
+  document.getElementById('groupPoolCollapseBtn').onclick = () => toggleSidePanel(document.getElementById('groupPoolPanel'), 'groupPoolCollapsed');
+  document.getElementById('groupModeSelect').onchange = e => { App.data.group_settings.mode = e.target.value; saveCurrentClass(); renderGroupsTab(); };
+  document.getElementById('groupValueInput').onchange = e => {
+    App.data.group_settings.value = Math.max(1, parseInt(e.target.value) || 1);
+    saveCurrentClass(); renderGroupsTab();
+  };
+  document.getElementById('btnGenerateGroups').onclick = () => {
+    if (!App.data.students.length) { alert(t('noStudents')); return; }
+    App.data.group_assignment = generateTeamGroups(App.data, groupCountFor(App.data));
+    saveCurrentClass(); renderGroupsTab();
+  };
+  document.getElementById('btnClearGroups').onclick = () => {
+    if (!Object.keys(App.data.group_assignment).length) return;
+    App.data.group_assignment = {}; saveCurrentClass(); renderGroupsTab();
+  };
+  document.getElementById('groupPoolList').addEventListener('click', e => {
+    if (!e.target.closest('.pool-item') && App.armedStudent) unassignFromGroup(App.armedStudent);
+  });
+
   // -- Innstillingar --
-  document.getElementById('accentCustom').oninput = e => { App.settings.accent = e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
-  document.getElementById('radiusRange').oninput = e => { App.settings.radius = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
-  document.getElementById('blurRange').oninput = e => { App.settings.blur = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
-  document.getElementById('opacityRange').oninput = e => { App.settings.opacity = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
   document.getElementById('uiScaleRange').oninput = e => { App.settings.uiScale = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
   document.getElementById('fontScaleRange').oninput = e => { App.settings.fontScale = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
-  document.getElementById('seatSizeAuto').onchange = e => {
-    App.settings.seatSizeOverride = e.target.checked ? null : parseInt(document.getElementById('seatSizeRange').value);
-    Store.saveSettings(App.settings); document.getElementById('seatSizeRange').disabled = e.target.checked;
-    renderAllRoomViews();
-  };
-  document.getElementById('seatSizeRange').oninput = e => {
-    App.settings.seatSizeOverride = +e.target.value; Store.saveSettings(App.settings); renderAllRoomViews();
-  };
   for (const [id, key] of [['exportDate', 'exportDate'], ['exportTime', 'exportTime'], ['exportWeek', 'exportWeek'], ['exportClassName', 'exportClassName']]) {
     document.getElementById(id).onchange = e => { App.settings[key] = e.target.checked; Store.saveSettings(App.settings); };
   }
@@ -1373,6 +1523,9 @@ function wireEvents() {
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tabview').forEach(v => v.classList.toggle('active', v.id === 'tab-' + name));
+  App.armedStudent = null;
+  if (name === 'seating') renderPool();
+  if (name === 'groups') renderGroupsTab();
 }
 
 // -- Nullstill alt (krev at brukaren skriv eit stadfestingsord - vernar mot uhell) --
@@ -1472,6 +1625,7 @@ function init() {
   applyStaticTranslations();
   wireEvents();
   renderSettingsTab();
+  syncAppearancePanel();
   applyPanelCollapseState();
   updateZoomLabel('Room'); updateZoomLabel('Seat');
 

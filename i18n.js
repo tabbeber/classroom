@@ -5,7 +5,7 @@
 const I18N = {
 nn: {
   appTitle: "Klasseromplassering",
-  tabClass: "Klasse", tabRoom: "Klasserom", tabSeating: "Plassering", tabSettings: "Innstillingar",
+  tabClass: "Klasse", tabRoom: "Klasserom", tabSeating: "Plassering", tabGroups: "Grupper", tabSettings: "Innstillingar",
 
   classesHeading: "Klassar", newClass: "Ny klasse", renameClass: "Endre namn",
   duplicateClass: "Kopier", deleteClass: "Slett", setDefault: "Set som standard",
@@ -47,8 +47,15 @@ nn: {
   roomSwitchConfirm: "Byte til dette romet for klassen? Gjeldande plassering/lås kan bli borte for plassar som ikkje finst i det nye rommet.",
   mergeGroups: "Slå saman valde bord", splitGroups: "Skil ut valde plassar",
   autoFrontBack: "Auto-merk framme/bak", seatMenuBtn: "☰ Meny for valde", clearSelection: "Merk ingen",
+  roomAppearanceBtn: "Utsjånad", roomAppearanceTitle: "Utsjånad",
+  roomAppearanceMovedHint: "Avrunding, uskarpheit, gjennomsikt og pultstorleik finn du no under \"Utsjånad\" i Klasserom-fana.",
+  removeStudent: "Fjern elev", confirmRemoveStudent: "Fjerne {name} frå klassen? Dette fjernar òg plassering og historikk for eleven.",
+  duplicateStudentName: "Ein elev med det namnet finst alt.", addStudent: "Legg til", newStudentPlaceholder: "Nytt elevnamn...",
+  groupModeLabel: "Del inn etter:", groupModeCount: "Talet på grupper", groupModeSize: "Elevar per gruppe",
+  generateGroups: "Fordel automatisk", clearGroups: "Tøm grupper", groupPoolHelp: "Ufordelte elevar. Klikk eller dra for å plassere i ei gruppe.",
+  allGrouped: "Alle elevar er fordelte i grupper.", groupLabel: "Gruppe {n}",
   noSelectionHint: "Vel ein plass fyrst (klikk, eller Ctrl+klikk for fleire).",
-  previewImage: "Førehandsvis bilete", previewTitle: "Førehandsvising", previewFlip: "Snu visning",
+  previewImage: "Førehandsvis bilete", previewTitle: "Førehandsvising", previewFlip: "Snu visning", exportWhiteBgLbl: "Kvit bakgrunn (skrivarvennleg)",
   historyBrowserBtn: "Bla i tidlegare plasseringar", historyBrowserTitle: "Tidlegare plasseringar",
   historyBrowserOlder: "Eldre", historyBrowserNewer: "Nyare", historyBrowserRestore: "Gjenopprett denne plasseringa",
   historyBrowserRestoreConfirm: "Erstatte gjeldande plassering med denne? Noverande plassering vert ikkje lagra automatisk først.",
@@ -104,7 +111,7 @@ nn: {
 
 nb: {
   appTitle: "Klasseromsplassering",
-  tabClass: "Klasse", tabRoom: "Klasserom", tabSeating: "Plassering", tabSettings: "Innstillinger",
+  tabClass: "Klasse", tabRoom: "Klasserom", tabSeating: "Plassering", tabGroups: "Grupper", tabSettings: "Innstillinger",
 
   classesHeading: "Klasser", newClass: "Ny klasse", renameClass: "Endre navn",
   duplicateClass: "Kopier", deleteClass: "Slett", setDefault: "Sett som standard",
@@ -146,8 +153,15 @@ nb: {
   roomSwitchConfirm: "Bytte til dette rommet for klassen? Gjeldende plassering/lås kan forsvinne for plasser som ikke finnes i det nye rommet.",
   mergeGroups: "Slå sammen valgte bord", splitGroups: "Skill ut valgte plasser",
   autoFrontBack: "Auto-merk foran/bak", seatMenuBtn: "☰ Meny for valgte", clearSelection: "Merk ingen",
+  roomAppearanceBtn: "Utseende", roomAppearanceTitle: "Utseende",
+  roomAppearanceMovedHint: "Avrunding, uskarphet, gjennomsikt og pultstørrelse finner du nå under \"Utseende\" i Klasserom-fanen.",
+  removeStudent: "Fjern elev", confirmRemoveStudent: "Fjerne {name} fra klassen? Dette fjerner også plassering og historikk for eleven.",
+  duplicateStudentName: "En elev med det navnet finnes allerede.", addStudent: "Legg til", newStudentPlaceholder: "Nytt elevnavn...",
+  groupModeLabel: "Del inn etter:", groupModeCount: "Antall grupper", groupModeSize: "Elever per gruppe",
+  generateGroups: "Fordel automatisk", clearGroups: "Tøm grupper", groupPoolHelp: "Ufordelte elever. Klikk eller dra for å plassere i en gruppe.",
+  allGrouped: "Alle elever er fordelt i grupper.", groupLabel: "Gruppe {n}",
   noSelectionHint: "Velg en plass først (klikk, eller Ctrl+klikk for flere).",
-  previewImage: "Forhåndsvis bilde", previewTitle: "Forhåndsvisning", previewFlip: "Snu visning",
+  previewImage: "Forhåndsvis bilde", previewTitle: "Forhåndsvisning", previewFlip: "Snu visning", exportWhiteBgLbl: "Hvit bakgrunn (skrivervennlig)",
   historyBrowserBtn: "Bla i tidligere plasseringer", historyBrowserTitle: "Tidligere plasseringer",
   historyBrowserOlder: "Eldre", historyBrowserNewer: "Nyere", historyBrowserRestore: "Gjenopprett denne plasseringen",
   historyBrowserRestoreConfirm: "Erstatte gjeldende plassering med denne? Nåværende plassering blir ikke lagret automatisk først.",
@@ -203,7 +217,7 @@ nb: {
 
 en: {
   appTitle: "Classroom Seating",
-  tabClass: "Class", tabRoom: "Room", tabSeating: "Seating", tabSettings: "Settings",
+  tabClass: "Class", tabRoom: "Room", tabSeating: "Seating", tabGroups: "Groups", tabSettings: "Settings",
 
   classesHeading: "Classes", newClass: "New class", renameClass: "Rename",
   duplicateClass: "Duplicate", deleteClass: "Delete", setDefault: "Set as default",
@@ -245,8 +259,15 @@ en: {
   roomSwitchConfirm: "Switch this class to this room? Current seating/locks may be lost for seats that don't exist in the new room.",
   mergeGroups: "Merge selected tables", splitGroups: "Split out selected seats",
   autoFrontBack: "Auto-tag front/back", seatMenuBtn: "☰ Menu for selected", clearSelection: "Select none",
+  roomAppearanceBtn: "Appearance", roomAppearanceTitle: "Appearance",
+  roomAppearanceMovedHint: "Corner radius, blur, transparency and seat size are now under \"Appearance\" in the Classroom tab.",
+  removeStudent: "Remove student", confirmRemoveStudent: "Remove {name} from the class? This also removes their seating and history.",
+  duplicateStudentName: "A student with that name already exists.", addStudent: "Add", newStudentPlaceholder: "New student name...",
+  groupModeLabel: "Divide by:", groupModeCount: "Number of groups", groupModeSize: "Students per group",
+  generateGroups: "Distribute automatically", clearGroups: "Clear groups", groupPoolHelp: "Unassigned students. Click or drag to place into a group.",
+  allGrouped: "All students are assigned to groups.", groupLabel: "Group {n}",
   noSelectionHint: "Select a seat first (click, or Ctrl+click for more).",
-  previewImage: "Preview image", previewTitle: "Preview", previewFlip: "Flip view",
+  previewImage: "Preview image", previewTitle: "Preview", previewFlip: "Flip view", exportWhiteBgLbl: "White background (printer-friendly)",
   historyBrowserBtn: "Browse past seatings", historyBrowserTitle: "Past seatings",
   historyBrowserOlder: "Older", historyBrowserNewer: "Newer", historyBrowserRestore: "Restore this seating",
   historyBrowserRestoreConfirm: "Replace current seating with this one? The current seating will not be saved automatically first.",

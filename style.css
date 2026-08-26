@@ -120,8 +120,8 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 
 /* -- Modal-dialogar -- */
 .modal-backdrop {
-  position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex;
-  align-items: center; justify-content: center; z-index: 50;
+  position: fixed; inset: 0; background: rgba(0,0,0,.75); backdrop-filter: blur(14px);
+  display: flex; align-items: center; justify-content: center; z-index: 50;
 }
 .modal {
   background: var(--panel-bg); color: var(--ink); border-radius: var(--radius); padding: 1.2rem; min-width: 320px;
@@ -186,12 +186,28 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 .draft-bar-icon { font-size: 1.2rem; }
 .draft-bar button.primary { background: #d97706; border-color: #d97706; }
 .draft-bar button.danger { background: #ffffff; }
+.room-layout-flex { flex: 1; display: flex; gap: .6rem; min-height: 0; }
 .room-scroll {
   flex: 1; overflow: auto; border-radius: var(--radius); background: rgba(var(--glass-rgb),.12);
   position: relative; border: 1px solid rgba(var(--glass-rgb),.4);
   display: flex; justify-content: center; align-items: flex-start;
 }
 .room-canvas { position: relative; margin: 0 auto; flex-shrink: 0; }
+.appearance-side-panel {
+  width: 260px; flex: 0 0 auto; display: none; flex-direction: column; gap: .5rem;
+}
+.appearance-side-panel.show { display: flex; }
+.appearance-side-panel .side-panel-body { gap: .3rem; }
+.appearance-side-panel label:not(.row) { font-size: .85rem; color: var(--muted); margin-top: .3rem; }
+
+.groups-canvas-scroll { flex: 1; overflow: auto; border-radius: var(--radius); }
+.groups-canvas { display: flex; flex-wrap: wrap; gap: .9rem; align-content: flex-start; }
+.group-card {
+  background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: var(--radius);
+  padding: .6rem; width: 220px; min-height: 120px;
+}
+.group-card h4 { margin: 0 0 .4rem; }
+.group-members { display: flex; flex-direction: column; gap: .3rem; min-height: 40px; }
 
 .group-frame {
   position: absolute; border-radius: calc(var(--radius) + 6px);

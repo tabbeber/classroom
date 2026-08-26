@@ -28,6 +28,7 @@
   <button class="tab-btn active" data-tab="class"><span data-i18n="tabClass">Klasse</span></button>
   <button class="tab-btn" data-tab="room"><span data-i18n="tabRoom">Klasserom</span></button>
   <button class="tab-btn" data-tab="seating"><span data-i18n="tabSeating">Plassering</span></button>
+  <button class="tab-btn" data-tab="groups"><span data-i18n="tabGroups">Grupper</span></button>
   <button class="tab-btn" data-tab="settings"><span data-i18n="tabSettings">Innstillingar</span></button>
 </nav>
 
@@ -52,20 +53,13 @@
 
     <div class="panel">
       <h2 data-i18n="studentsHeading">Elevar</h2>
-      <p class="hint" data-i18n="studentsHelp">Éin elev per linje.</p>
-      <div class="class-students-grid">
-        <div>
-          <textarea id="studentsText" rows="10"></textarea>
-          <div class="toolbar" style="margin-top:.5rem">
-            <button id="btnSaveStudents" class="primary" data-i18n="saveStudents">Lagre elevliste</button>
-            <button id="btnImportStudents" data-i18n="importFile">Importer frå fil...</button>
-            <input type="file" id="importStudentsFile" accept=".txt" hidden>
-          </div>
-        </div>
-        <div>
-          <h3 data-i18n="gendersHeading" style="margin-top:0">Kjønn</h3>
-          <div id="genderList" class="gender-list-scroll"></div>
-        </div>
+      <p class="hint" data-i18n="studentsHelp">Namn og kjønn for kvar elev. Lim inn fleire namn (eitt per linje) i feltet for å leggje til mange på éin gong.</p>
+      <div id="studentRows" class="student-rows-scroll"></div>
+      <div class="row" style="margin-top:.5rem">
+        <input type="text" id="newStudentInput" data-i18n-ph="newStudentPlaceholder" placeholder="Nytt elevnamn...">
+        <button id="btnAddStudent" class="primary" data-i18n="addStudent">Legg til</button>
+        <button id="btnImportStudents" data-i18n="importFile">Importer frå fil...</button>
+        <input type="file" id="importStudentsFile" accept=".txt" hidden>
       </div>
     </div>
 
@@ -116,6 +110,8 @@
       <button id="btnSplitGroups" data-i18n="splitGroups">Skil ut valde plassar</button>
       <button id="btnClearSelection" data-i18n="clearSelection">Merk ingen</button>
       <span class="hint" id="roomSeatCount"></span>
+      <span class="spacer"></span>
+      <button id="btnRoomAppearance" class="toggle" data-i18n="roomAppearanceBtn">Utsjånad</button>
     </div>
     <div class="draft-bar" id="roomDraftBar">
       <span class="draft-bar-icon">&#9888;</span>
@@ -125,8 +121,27 @@
       <button id="btnSaveRoomDraft" class="primary" data-i18n="saveRoomDraft">Lagre endringar</button>
     </div>
     <p class="hint" id="roomHint" data-i18n="roomHint"></p>
-    <div class="room-scroll" id="roomScrollA">
-      <div class="room-canvas" id="roomCanvasA"></div>
+    <div class="room-layout-flex">
+      <div class="room-scroll" id="roomScrollA">
+        <div class="room-canvas" id="roomCanvasA"></div>
+      </div>
+      <div class="side-panel appearance-side-panel" id="appearancePanel">
+        <div class="side-panel-head">
+          <h3 data-i18n="roomAppearanceTitle">Utsjånad</h3>
+          <button class="collapse-btn" id="appearanceCloseBtn">&times;</button>
+        </div>
+        <div class="side-panel-body">
+          <label data-i18n="settingsRadius">Avrunding</label>
+          <input type="range" id="rapRadius" min="0" max="24" step="1">
+          <label data-i18n="settingsBlur">Uskarpheit på pultar</label>
+          <input type="range" id="rapBlur" min="0" max="20" step="1">
+          <label data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
+          <input type="range" id="rapOpacity" min="0.2" max="1" step="0.05">
+          <label data-i18n="settingsSeatSize">Pultstorleik</label>
+          <label class="row"><input type="checkbox" id="rapSeatAuto"> <span data-i18n="seatSizeAuto">Automatisk</span></label>
+          <input type="range" id="rapSeatSize" min="100" max="220" step="5">
+        </div>
+      </div>
     </div>
   </section>
 
@@ -180,6 +195,37 @@
     </div>
   </section>
 
+  <!-- ===================== GRUPPER ===================== -->
+  <section id="tab-groups" class="tabview">
+    <div class="toolbar">
+      <span data-i18n="groupModeLabel">Del inn etter:</span>
+      <select id="groupModeSelect">
+        <option value="count" data-i18n="groupModeCount">Talet på grupper</option>
+        <option value="size" data-i18n="groupModeSize">Elevar per gruppe</option>
+      </select>
+      <input type="number" id="groupValueInput" min="1" value="4" style="width:5rem">
+      <button id="btnGenerateGroups" class="primary" data-i18n="generateGroups">Fordel automatisk</button>
+      <button id="btnClearGroups" data-i18n="clearGroups">Tøm grupper</button>
+    </div>
+    <div class="seating-layout">
+      <div class="pool-panel side-panel" id="groupPoolPanel">
+        <div class="side-panel-head">
+          <h3 data-i18n="poolPanelTitle">Elevar</h3>
+          <button class="collapse-btn" id="groupPoolCollapseBtn">&harr;</button>
+        </div>
+        <div class="side-panel-body">
+          <p class="hint" data-i18n="groupPoolHelp">Ufordelte elevar. Klikk eller dra for å plassere i ei gruppe.</p>
+          <div class="pool-list" id="groupPoolList"></div>
+        </div>
+      </div>
+      <div class="room-wrap">
+        <div class="groups-canvas-scroll">
+          <div class="groups-canvas" id="groupsCanvas"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ===================== INNSTILLINGAR ===================== -->
   <section id="tab-settings" class="tabview">
     <div class="panel">
@@ -205,33 +251,12 @@
         <label data-i18n="settingsTheme">Tema</label>
         <div class="theme-cards" id="themeCards"></div>
 
-        <label data-i18n="settingsAccent">Fargetema</label>
-        <div class="row">
-          <div class="swatches" id="accentSwatches"></div>
-          <input type="color" id="accentCustom">
-        </div>
-
-        <label data-i18n="settingsRadius">Avrunding</label>
-        <input type="range" id="radiusRange" min="0" max="24" step="1">
-
         <label data-i18n="settingsBg">Bakgrunnsbilete</label>
         <div class="row">
           <div class="bg-preview" id="bgPreview"></div>
           <button id="btnUploadBg" data-i18n="uploadBg">Last opp bilete...</button>
           <button id="btnRemoveBg" data-i18n="removeBg">Fjern bilete</button>
           <input type="file" id="bgFile" accept="image/*" hidden>
-        </div>
-
-        <label data-i18n="settingsBlur">Uskarpheit på pultar</label>
-        <input type="range" id="blurRange" min="0" max="20" step="1">
-
-        <label data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
-        <input type="range" id="opacityRange" min="0.2" max="1" step="0.05">
-
-        <label data-i18n="settingsSeatSize">Pultstorleik</label>
-        <div class="row">
-          <label class="row"><input type="checkbox" id="seatSizeAuto"> <span data-i18n="seatSizeAuto">Automatisk</span></label>
-          <input type="range" id="seatSizeRange" min="100" max="220" step="5">
         </div>
 
         <label data-i18n="settingsUiScale">Storleik på grensesnitt</label>
@@ -248,6 +273,7 @@
           <label class="row"><input type="checkbox" id="exportClassName"> <span data-i18n="exportClassNameLbl">Klassenamn</span></label>
         </div>
       </div>
+      <p class="hint" data-i18n="roomAppearanceMovedHint">Avrunding, uskarpheit, gjennomsikt og pultstorleik finn du no under "Utsjånad..." i Plassering-fana.</p>
       <div class="toolbar" style="margin-top:1rem">
         <button id="btnResetSettings" data-i18n="settingsReset">Tilbakestill innstillingar</button>
       </div>
