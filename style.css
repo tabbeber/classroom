@@ -201,6 +201,12 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 .appearance-side-panel label:not(.row) { font-size: .85rem; color: var(--muted); margin-top: .3rem; }
 
 .groups-canvas-scroll { flex: 1; overflow: auto; border-radius: var(--radius); }
+.preview-appearance-row {
+  display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; margin-bottom: .6rem;
+  padding: .5rem .6rem; background: var(--row-bg); border-radius: var(--radius);
+}
+.preview-appearance-row label:not(.row) { font-size: .82rem; color: var(--muted); }
+.preview-appearance-row input[type=range] { width: 110px; }
 .groups-canvas { display: flex; flex-wrap: wrap; gap: .9rem; align-content: flex-start; }
 .group-card {
   background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: var(--radius);

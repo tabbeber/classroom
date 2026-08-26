@@ -128,18 +128,18 @@
       <div class="side-panel appearance-side-panel" id="appearancePanel">
         <div class="side-panel-head">
           <h3 data-i18n="roomAppearanceTitle">Utsjånad</h3>
-          <button class="collapse-btn" id="appearanceCloseBtn">&times;</button>
+          <button class="collapse-btn appearance-close-btn">&times;</button>
         </div>
         <div class="side-panel-body">
           <label data-i18n="settingsRadius">Avrunding</label>
-          <input type="range" id="rapRadius" min="0" max="24" step="1">
+          <input type="range" class="rap-radius" min="0" max="24" step="1">
           <label data-i18n="settingsBlur">Uskarpheit på pultar</label>
-          <input type="range" id="rapBlur" min="0" max="20" step="1">
+          <input type="range" class="rap-blur" min="0" max="20" step="1">
           <label data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
-          <input type="range" id="rapOpacity" min="0.2" max="1" step="0.05">
+          <input type="range" class="rap-opacity" min="0.2" max="1" step="0.05">
           <label data-i18n="settingsSeatSize">Pultstorleik</label>
-          <label class="row"><input type="checkbox" id="rapSeatAuto"> <span data-i18n="seatSizeAuto">Automatisk</span></label>
-          <input type="range" id="rapSeatSize" min="100" max="220" step="5">
+          <label class="row"><input type="checkbox" class="rap-seat-auto"> <span data-i18n="seatSizeAuto">Automatisk</span></label>
+          <input type="range" class="rap-seat-size" min="100" max="220" step="5">
         </div>
       </div>
     </div>
@@ -180,6 +180,7 @@
           <button id="btnHistoryBrowser" data-i18n="historyBrowserBtn">Bla i tidlegare plasseringar</button>
           <button id="btnPreviewImage" data-i18n="previewImage">Førehandsvis bilete</button>
           <button id="btnExportImage" data-i18n="exportImage">Last ned bilete (PNG)</button>
+          <button id="btnSeatingAppearance" class="toggle" data-i18n="roomAppearanceBtn">Utsjånad</button>
         </div>
         <div class="room-scroll" id="roomScrollB">
           <div class="room-canvas" id="roomCanvasB"></div>
@@ -191,6 +192,23 @@
           <button class="collapse-btn" id="infoCollapseBtn">&harr;</button>
         </div>
         <div class="side-panel-body" id="infoPanel"></div>
+      </div>
+      <div class="side-panel appearance-side-panel" id="appearancePanelSeating">
+        <div class="side-panel-head">
+          <h3 data-i18n="roomAppearanceTitle">Utsjånad</h3>
+          <button class="collapse-btn appearance-close-btn">&times;</button>
+        </div>
+        <div class="side-panel-body">
+          <label data-i18n="settingsRadius">Avrunding</label>
+          <input type="range" class="rap-radius" min="0" max="24" step="1">
+          <label data-i18n="settingsBlur">Uskarpheit på pultar</label>
+          <input type="range" class="rap-blur" min="0" max="20" step="1">
+          <label data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
+          <input type="range" class="rap-opacity" min="0.2" max="1" step="0.05">
+          <label data-i18n="settingsSeatSize">Pultstorleik</label>
+          <label class="row"><input type="checkbox" class="rap-seat-auto"> <span data-i18n="seatSizeAuto">Automatisk</span></label>
+          <input type="range" class="rap-seat-size" min="100" max="220" step="5">
+        </div>
       </div>
     </div>
   </section>

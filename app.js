@@ -445,21 +445,34 @@ function openMenuForSelection() {
 }
 // Popover for romutsjånad (avrunding/uskarpheit/gjennomsikt/pultstorleik) i
 // Plassering-fana - kan justerast mens romet er synleg i bakgrunnen.
-function syncAppearancePanel() {
+function syncAppearancePanel(panel) {
   const s = App.settings;
-  document.getElementById('rapRadius').value = s.radius;
-  document.getElementById('rapBlur').value = s.blur;
-  document.getElementById('rapOpacity').value = s.opacity;
-  document.getElementById('rapSeatAuto').checked = !s.seatSizeOverride;
-  document.getElementById('rapSeatSize').value = s.seatSizeOverride || SEAT_W;
-  document.getElementById('rapSeatSize').disabled = !s.seatSizeOverride;
+  panel.querySelector('.rap-radius').value = s.radius;
+  panel.querySelector('.rap-blur').value = s.blur;
+  panel.querySelector('.rap-opacity').value = s.opacity;
+  panel.querySelector('.rap-seat-auto').checked = !s.seatSizeOverride;
+  panel.querySelector('.rap-seat-size').value = s.seatSizeOverride || SEAT_W;
+  panel.querySelector('.rap-seat-size').disabled = !s.seatSizeOverride;
 }
-function toggleAppearancePanel() {
-  const panel = document.getElementById('appearancePanel');
+function wireAppearancePanel(panel, redrawFn) {
+  panel.querySelector('.rap-radius').oninput = e => { App.settings.radius = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); redrawFn && redrawFn(); };
+  panel.querySelector('.rap-blur').oninput = e => { App.settings.blur = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); redrawFn && redrawFn(); };
+  panel.querySelector('.rap-opacity').oninput = e => { App.settings.opacity = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); redrawFn && redrawFn(); };
+  panel.querySelector('.rap-seat-auto').onchange = e => {
+    App.settings.seatSizeOverride = e.target.checked ? null : parseInt(panel.querySelector('.rap-seat-size').value);
+    Store.saveSettings(App.settings); panel.querySelector('.rap-seat-size').disabled = e.target.checked;
+    renderAllRoomViews(); redrawFn && redrawFn();
+  };
+  panel.querySelector('.rap-seat-size').oninput = e => {
+    App.settings.seatSizeOverride = +e.target.value; Store.saveSettings(App.settings); renderAllRoomViews(); redrawFn && redrawFn();
+  };
+}
+function toggleAppearancePanel(panelId, btnId) {
+  const panel = document.getElementById(panelId);
   const show = !panel.classList.contains('show');
   panel.classList.toggle('show', show);
-  document.getElementById('btnRoomAppearance').classList.toggle('active', show);
-  if (show) syncAppearancePanel();
+  document.getElementById(btnId).classList.toggle('active', show);
+  if (show) syncAppearancePanel(panel);
 }
 function clearSelection() {
   App.multiSelected = new Set();
@@ -679,6 +692,10 @@ function exportTitleLine() {
 // ingen soner, lås eller åtvaringar) til eit gjeve canvas. `flipped` er
 // uavhengig av romet sitt gjeldande view_flipped, slik at førehandsvising
 // kan snuast utan å påverke sjølve romet.
+function hexToRgba(hex, alpha) {
+  const h = hex.replace('#', ''), n = parseInt(h.length === 3 ? h.replace(/(.)/g, '$1$1') : h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
 async function drawSeatingChart(canvas, flipped, arrangementOverride, titleOverride, whiteBg) {
   const room = App.room, cls = App.data, { w: seatW, h: seatH } = computeSeatSize(cls.students);
   const arrangement = arrangementOverride || cls.arrangement;
@@ -694,6 +711,9 @@ async function drawSeatingChart(canvas, flipped, arrangementOverride, titleOverr
   const muted = whiteBg ? '#6b7280' : (cs.getPropertyValue('--muted').trim() || '#9ca3af');
   const panelBg = whiteBg ? '#ffffff' : (cs.getPropertyValue('--panel-bg').trim() || '#ffffff');
   const panelBorder = whiteBg ? '#d1d5db' : (cs.getPropertyValue('--panel-border').trim() || '#d1d5db');
+  const radius = whiteBg ? 8 : (App.settings.radius ?? 8);
+  const seatOpacity = whiteBg ? 1 : (App.settings.opacity ?? 1);
+  const seatBlur = whiteBg ? 0 : (App.settings.blur ?? 0);
 
   ctx.fillStyle = pageBg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -722,8 +742,11 @@ async function drawSeatingChart(canvas, flipped, arrangementOverride, titleOverr
     if (!positions[sid]) continue;
     const [px, py0] = positions[sid], py = py0 + titleH;
     const student = arrangement[sid];
-    roundRect(ctx, px, py, seatW, seatH, 8); ctx.fillStyle = panelBg; ctx.fill();
-    ctx.strokeStyle = panelBorder; ctx.lineWidth = 2; ctx.stroke();
+    ctx.save();
+    if (seatBlur > 0) ctx.filter = `blur(${Math.min(seatBlur, 20) * 0.3}px)`;
+    roundRect(ctx, px, py, seatW, seatH, radius); ctx.fillStyle = hexToRgba(panelBg, seatOpacity); ctx.fill();
+    ctx.restore();
+    roundRect(ctx, px, py, seatW, seatH, radius); ctx.strokeStyle = panelBorder; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = student ? ink : muted; ctx.font = (student ? 'bold ' : '') + '13px "Segoe UI"';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     wrapText(ctx, student || t('empty'), px + seatW / 2, py + seatH / 2, seatW - 12, 17);
@@ -745,7 +768,17 @@ async function openImagePreviewModal() {
       <span class="spacer"></span>
       <button id="pvClose">${t('close')}</button>
     </div>
-    <div id="pvCanvasWrap" style="max-height:75vh; overflow:auto; border:1px solid var(--panel-border); border-radius:8px; text-align:center;">
+    <div class="preview-appearance-row">
+      <label data-i18n="settingsRadius">${t('settingsRadius')}</label>
+      <input type="range" class="rap-radius" min="0" max="24" step="1">
+      <label data-i18n="settingsBlur">${t('settingsBlur')}</label>
+      <input type="range" class="rap-blur" min="0" max="20" step="1">
+      <label data-i18n="settingsOpacity">${t('settingsOpacity')}</label>
+      <input type="range" class="rap-opacity" min="0.2" max="1" step="0.05">
+      <label class="row"><input type="checkbox" class="rap-seat-auto"> ${t('seatSizeAuto')}</label>
+      <input type="range" class="rap-seat-size" min="100" max="220" step="5">
+    </div>
+    <div id="pvCanvasWrap" style="max-height:65vh; overflow:auto; border:1px solid var(--panel-border); border-radius:8px; text-align:center;">
       <canvas id="pvCanvas" style="max-width:100%; height:auto; display:inline-block;"></canvas>
     </div>`);
   modal.style.maxWidth = '92vw';
@@ -756,6 +789,8 @@ async function openImagePreviewModal() {
   modal.querySelector('#pvWhiteBg').onchange = async e => {
     whiteBg = e.target.checked; App.settings.exportWhiteBg = whiteBg; Store.saveSettings(App.settings); await redraw();
   };
+  syncAppearancePanel(modal);
+  wireAppearancePanel(modal, redraw);
   modal.querySelector('#pvDownload').onclick = () => downloadDataUrl(canvas.toDataURL('image/png'), 'klasseromplassering.png');
   modal.querySelector('#pvClose').onclick = closeModal;
 }
@@ -975,7 +1010,7 @@ function renderClassTab() {
 }
 function renderStudentRows() {
   const wrap = document.getElementById('studentRows'); wrap.innerHTML = '';
-  const opts = [['', '\u2013', t('genderNone')], ['Jente', 'J', t('genderGirl')], ['Gut', 'G', t('genderBoy')], ['Anna', 'A', t('genderOther')]];
+  const opts = [['', '\u2013', t('genderNone')], ['Jente', 'J', t('genderGirl')], ['Gut', 'G', t('genderBoy')]];
   for (const name of App.data.students) {
     const row = document.createElement('div'); row.className = 'student-row';
     const input = document.createElement('input'); input.type = 'text'; input.className = 'name-input'; input.value = name;
@@ -1389,19 +1424,15 @@ function wireEvents() {
   };
   document.getElementById('btnMergeGroups').onclick = doMergeSelectedGroups;
   document.getElementById('btnSplitGroups').onclick = doSplitSelectedSeats;
-  document.getElementById('btnRoomAppearance').onclick = toggleAppearancePanel;
-  document.getElementById('appearanceCloseBtn').onclick = () => {
-    document.getElementById('appearancePanel').classList.remove('show');
-    document.getElementById('btnRoomAppearance').classList.remove('active');
-  };
-  document.getElementById('rapRadius').oninput = e => { App.settings.radius = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
-  document.getElementById('rapBlur').oninput = e => { App.settings.blur = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
-  document.getElementById('rapOpacity').oninput = e => { App.settings.opacity = +e.target.value; Store.saveSettings(App.settings); applySettings(App.settings); };
-  document.getElementById('rapSeatAuto').onchange = e => {
-    App.settings.seatSizeOverride = e.target.checked ? null : parseInt(document.getElementById('rapSeatSize').value);
-    Store.saveSettings(App.settings); document.getElementById('rapSeatSize').disabled = e.target.checked; renderAllRoomViews();
-  };
-  document.getElementById('rapSeatSize').oninput = e => { App.settings.seatSizeOverride = +e.target.value; Store.saveSettings(App.settings); renderAllRoomViews(); };
+  for (const [panelId, btnId] of [['appearancePanel', 'btnRoomAppearance'], ['appearancePanelSeating', 'btnSeatingAppearance']]) {
+    const panel = document.getElementById(panelId);
+    document.getElementById(btnId).onclick = () => toggleAppearancePanel(panelId, btnId);
+    panel.querySelector('.appearance-close-btn').onclick = () => {
+      panel.classList.remove('show');
+      document.getElementById(btnId).classList.remove('active');
+    };
+    wireAppearancePanel(panel);
+  }
   document.getElementById('btnSaveRoomDraft').onclick = saveRoomDraft;
   document.getElementById('btnDiscardRoomDraft').onclick = discardRoomDraft;
   document.getElementById('btnFlipRoom').onclick = () => {
@@ -1625,7 +1656,8 @@ function init() {
   applyStaticTranslations();
   wireEvents();
   renderSettingsTab();
-  syncAppearancePanel();
+  syncAppearancePanel(document.getElementById('appearancePanel'));
+  syncAppearancePanel(document.getElementById('appearancePanelSeating'));
   applyPanelCollapseState();
   updateZoomLabel('Room'); updateZoomLabel('Seat');
 
