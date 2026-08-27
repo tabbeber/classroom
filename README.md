@@ -1,7 +1,7 @@
 # Classroom - a tool that may aid teachers in setting up their classroom and groups.
 
 Up-front - this app is vibe-coded with Claude. I will not pass this up as my own work.
-It has still taken time to put together.
+But it has still taken time to put together.
 
 https://klasserom.allbrass.no/
 
