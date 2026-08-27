@@ -45,13 +45,13 @@ header.topbar h1 { font-size: 1.05rem; margin: 0; font-weight: 600; flex: 0 0 au
   background: rgba(255,255,255,.12); color: white; border: 1px solid rgba(255,255,255,.25);
 }
 .lang-switch button.active { background: var(--accent); border-color: var(--accent); }
-.kofi-link {
+.kofi-link, .github-link {
   display: flex; align-items: center; gap: .35rem; color: white; text-decoration: none;
   background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25);
   padding: .35rem .7rem; border-radius: var(--radius); font-size: calc(.85rem * var(--ui-scale));
   margin-right: .6rem; white-space: nowrap;
 }
-.kofi-link:hover { background: rgba(255,255,255,.22); }
+.kofi-link:hover, .github-link:hover { background: rgba(255,255,255,.22); }
 .kofi-cup { font-size: 1rem; line-height: 1; }
 .kofi-button-settings { display: inline-block; margin-top: .3rem; }
 .kofi-button-settings img { display: block; border-radius: 6px; }
@@ -150,6 +150,15 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 }
 .class-list .item.active { background: var(--row-active); }
 .class-list .item .name { flex: 1; font-weight: 600; }
+.inline-name-input {
+  flex: 1; min-width: 0; border: 1px solid transparent; background: transparent;
+  padding: .1rem .3rem; border-radius: calc(var(--radius) * .3); color: var(--ink);
+  font-weight: 600; font-size: inherit; font-family: inherit;
+}
+.inline-name-input:hover { border-color: var(--panel-border); }
+.inline-name-input:focus { border-color: var(--accent); background: var(--input-bg); }
+.room-name-row { display: flex; align-items: center; gap: .4rem; }
+.room-name-row .inline-name-input { font-weight: 600; min-width: 140px; }
 .gender-row, .pair-row { display: flex; align-items: center; gap: .3rem; padding: .12rem 0; }
 .gender-row .name { width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gender-radio {
@@ -158,6 +167,22 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 }
 .gender-radio:hover { background: var(--row-bg); }
 .gender-radio input { margin: 0; }
+.student-rows-container { display: flex; gap: 1rem; max-height: 480px; overflow-y: auto; }
+.student-rows-col { flex: 1; min-width: 230px; }
+.student-row { display: flex; align-items: center; gap: .25rem; padding: .1rem .15rem; border-radius: calc(var(--radius) * .35); }
+.student-row:hover { background: var(--row-bg); }
+.student-row .name-input {
+  flex: 1; min-width: 0; border: 1px solid transparent; background: transparent;
+  padding: .16rem .3rem; border-radius: calc(var(--radius) * .3); color: var(--ink); font-size: inherit;
+}
+.student-row .name-input:hover { border-color: var(--panel-border); }
+.student-row .name-input:focus { border-color: var(--accent); background: var(--input-bg); }
+.student-row .rm-btn {
+  padding: 0 .35rem; line-height: 1.7; color: #ef4444; border-color: transparent;
+  background: transparent; flex-shrink: 0;
+}
+.student-row .rm-btn:hover { border-color: #ef4444; background: rgba(239,68,68,.08); }
+@media (max-width: 780px) { .student-rows-container { flex-direction: column; max-height: none; } }
 .class-students-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
 .class-students-grid textarea { width: 100%; }
 .gender-list-scroll { max-height: 320px; overflow: auto; }
@@ -191,6 +216,7 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
   background: var(--row-bg); cursor: grab; user-select: none; border: 1px solid transparent; color: var(--ink);
 }
 .pool-item.armed { background: var(--row-active); border-color: var(--accent); }
+.pool-item.absent { opacity: .5; text-decoration: line-through; font-style: italic; }
 .pool-item.selected { background: var(--panel-border); }
 
 .room-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .4rem; }
@@ -214,16 +240,28 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
   width: 260px; flex: 0 0 auto; display: none; flex-direction: column; gap: .5rem;
 }
 .appearance-side-panel.show { display: flex; }
-.appearance-side-panel .side-panel-body { gap: .3rem; }
-.appearance-side-panel label:not(.row) { font-size: .85rem; color: var(--muted); margin-top: .3rem; }
+.appearance-side-panel .side-panel-body { gap: 0; display: flex; flex-direction: column; }
+.rap-group { padding: .45rem 0; border-bottom: 1px solid var(--panel-border); }
+.rap-group:last-child { border-bottom: none; padding-bottom: 0; }
+.rap-group-label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: .3rem; font-weight: 600; }
+.rap-group input[type=range] { width: 100%; }
+.rap-size-controls { display: flex; align-items: center; gap: .5rem; }
+.rap-size-controls input[type=range] { flex: 1; min-width: 0; }
+.rap-auto-label { display: flex; align-items: center; gap: .3rem; white-space: nowrap; font-size: .78rem; color: var(--muted); }
 
 .groups-canvas-scroll { flex: 1; overflow: auto; border-radius: var(--radius); }
 .preview-appearance-row {
-  display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; margin-bottom: .6rem;
-  padding: .5rem .6rem; background: var(--row-bg); border-radius: var(--radius);
+  display: flex; flex-wrap: wrap; gap: 0; align-items: stretch; margin-bottom: .6rem;
+  padding: .5rem .2rem; background: var(--row-bg); border-radius: var(--radius);
 }
-.preview-appearance-row label:not(.row) { font-size: .82rem; color: var(--muted); }
+.preview-appearance-row .rap-group {
+  display: flex; flex-direction: column; justify-content: center; gap: .3rem;
+  padding: 0 .9rem; border-bottom: none; border-right: 1px solid var(--panel-border);
+}
+.preview-appearance-row .rap-group:last-child { border-right: none; }
+.preview-appearance-row .rap-group-label, .preview-appearance-row .rap-group > label { font-size: .78rem; color: var(--muted); margin: 0; font-weight: 600; }
 .preview-appearance-row input[type=range] { width: 110px; }
+.preview-appearance-row .rap-size-controls input[type=range] { width: 90px; }
 .groups-canvas { display: flex; flex-wrap: wrap; gap: .9rem; align-content: flex-start; }
 .group-card {
   background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: var(--radius);

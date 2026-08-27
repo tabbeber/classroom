@@ -14,6 +14,18 @@
     <select id="classSelect"></select>
   </div>
   <div class="spacer"></div>
+  <a href="https://github.com/tabbeber/classroom" target="_blank" rel="noopener" class="github-link" title="GitHub">
+    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
+        0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13
+        -.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07
+        -1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82
+        .64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12
+        .51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48
+        0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+    </svg>
+    <span data-i18n="githubShort">Kjeldekode</span>
+  </a>
   <a href="https://ko-fi.com/H4Y525OAYW" target="_blank" rel="noopener" class="kofi-link" title="Kjøp meg ein kaffi!">
     <span class="kofi-cup">&#9749;</span> <span data-i18n="kofiShort">Kjøp meg ein kaffi!</span>
   </a>
@@ -36,11 +48,6 @@
 
   <!-- ===================== KLASSE ===================== -->
   <section id="tab-class" class="tabview active">
-    <div id="noClassBanner" class="panel welcome-banner" style="display:none">
-      <h2 data-i18n="welcomeTitle">Velkomen!</h2>
-      <p data-i18n="welcomeText">Du har ingen klassar enno. Trykk "Ny klasse" til venstre for å kome i gang.</p>
-    </div>
-
     <div class="class-top-grid">
       <div class="panel">
         <h2 data-i18n="classesHeading">Klassar</h2>
@@ -57,10 +64,18 @@
         </div>
       </div>
 
+      <div id="noClassBanner" class="panel welcome-banner" style="display:none">
+        <h2 data-i18n="welcomeTitle">Velkomen!</h2>
+        <p data-i18n="welcomeText">Du har ingen klassar enno. Trykk "Ny klasse" til venstre for å kome i gang.</p>
+      </div>
+
       <div class="panel" id="studentsPanel">
         <h2 data-i18n="studentsHeading">Elevar</h2>
         <p class="hint" data-i18n="studentsHelp">Namn og kjønn for kvar elev. Lim inn fleire namn (eitt per linje) i feltet for å leggje til mange på éin gong.</p>
-        <div id="studentRows" class="student-rows-scroll"></div>
+        <div id="studentRows" class="student-rows-container">
+          <div class="student-rows-col" id="studentRowsCol1"></div>
+          <div class="student-rows-col" id="studentRowsCol2" style="display:none"></div>
+        </div>
         <div class="row" style="margin-top:.5rem">
           <input type="text" id="newStudentInput" data-i18n-ph="newStudentPlaceholder" placeholder="Nytt elevnamn...">
           <button id="btnAddStudent" class="primary" data-i18n="addStudent">Legg til</button>
@@ -93,8 +108,8 @@
     <div class="toolbar">
       <span data-i18n="roomHeading">Rom:</span>
       <select id="roomSelect"></select>
+      <input type="text" id="roomNameInput" class="inline-name-input" style="max-width:180px">
       <button id="btnNewRoom" data-i18n="newRoom">Nytt rom</button>
-      <button id="btnRenameRoom" data-i18n="renameRoom">Endre namn</button>
       <button id="btnDuplicateRoom" data-i18n="duplicateRoom">Kopier</button>
       <button id="btnDeleteRoom" class="danger" data-i18n="deleteRoom">Slett</button>
     </div>
@@ -106,6 +121,7 @@
     <div class="toolbar">
       <button id="btnAddGroup" class="primary" data-i18n="roomToolbarAdd">+ Bordgruppe</button>
       <button id="btnQuickGrid" data-i18n="roomToolbarGrid">Lag rutenett automatisk...</button>
+      <button id="btnSaveLayout" data-i18n="saveLayoutBtn">Lagra som mal...</button>
       <button id="btnAutoFrontBack" data-i18n="autoFrontBack">Auto-merk framme/bak</button>
       <button id="btnFlipRoom" class="toggle">Snu visning</button>
       <span class="spacer"></span>
@@ -143,15 +159,25 @@
           <button class="collapse-btn appearance-close-btn">&times;</button>
         </div>
         <div class="side-panel-body">
-          <label data-i18n="settingsRadius">Avrunding</label>
-          <input type="range" class="rap-radius" min="0" max="24" step="1">
-          <label data-i18n="settingsBlur">Uskarpheit på pultar</label>
-          <input type="range" class="rap-blur" min="0" max="20" step="1">
-          <label data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
-          <input type="range" class="rap-opacity" min="0.2" max="1" step="0.05">
-          <label data-i18n="settingsSeatSize">Pultstorleik</label>
-          <label class="row"><input type="checkbox" class="rap-seat-auto"> <span data-i18n="seatSizeAuto">Automatisk</span></label>
-          <input type="range" class="rap-seat-size" min="100" max="220" step="5">
+          <div class="rap-group">
+            <label class="rap-group-label" data-i18n="settingsRadius">Avrunding</label>
+            <input type="range" class="rap-radius" min="0" max="24" step="1">
+          </div>
+          <div class="rap-group">
+            <label class="rap-group-label" data-i18n="settingsBlur">Uskarpheit på pultar</label>
+            <input type="range" class="rap-blur" min="0" max="20" step="1">
+          </div>
+          <div class="rap-group">
+            <label class="rap-group-label" data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
+            <input type="range" class="rap-opacity" min="0.2" max="1" step="0.05">
+          </div>
+          <div class="rap-group">
+            <label class="rap-group-label" data-i18n="settingsSeatSize">Pultstorleik</label>
+            <div class="rap-size-controls">
+              <input type="range" class="rap-seat-size" min="100" max="220" step="5">
+              <label class="rap-auto-label"><span data-i18n="seatSizeAuto">Automatisk</span> <input type="checkbox" class="rap-seat-auto"></label>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -193,8 +219,7 @@
           <span class="spacer"></span>
           <button id="btnFullHistory" data-i18n="fullHistory">Full historikk</button>
           <button id="btnHistoryBrowser" data-i18n="historyBrowserBtn">Bla i tidlegare plasseringar</button>
-          <button id="btnPreviewImage" data-i18n="previewImage">Førehandsvis bilete</button>
-          <button id="btnExportImage" data-i18n="exportImage">Last ned bilete (PNG)</button>
+          <button id="btnPreviewImage" data-i18n="previewImage">Sjå og last ned</button>
           <button id="btnSeatingAppearance" class="toggle" data-i18n="roomAppearanceBtn">Utsjånad</button>
         </div>
         <div class="room-scroll" id="roomScrollB">
@@ -214,15 +239,25 @@
           <button class="collapse-btn appearance-close-btn">&times;</button>
         </div>
         <div class="side-panel-body">
-          <label data-i18n="settingsRadius">Avrunding</label>
-          <input type="range" class="rap-radius" min="0" max="24" step="1">
-          <label data-i18n="settingsBlur">Uskarpheit på pultar</label>
-          <input type="range" class="rap-blur" min="0" max="20" step="1">
-          <label data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
-          <input type="range" class="rap-opacity" min="0.2" max="1" step="0.05">
-          <label data-i18n="settingsSeatSize">Pultstorleik</label>
-          <label class="row"><input type="checkbox" class="rap-seat-auto"> <span data-i18n="seatSizeAuto">Automatisk</span></label>
-          <input type="range" class="rap-seat-size" min="100" max="220" step="5">
+          <div class="rap-group">
+            <label class="rap-group-label" data-i18n="settingsRadius">Avrunding</label>
+            <input type="range" class="rap-radius" min="0" max="24" step="1">
+          </div>
+          <div class="rap-group">
+            <label class="rap-group-label" data-i18n="settingsBlur">Uskarpheit på pultar</label>
+            <input type="range" class="rap-blur" min="0" max="20" step="1">
+          </div>
+          <div class="rap-group">
+            <label class="rap-group-label" data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
+            <input type="range" class="rap-opacity" min="0.2" max="1" step="0.05">
+          </div>
+          <div class="rap-group">
+            <label class="rap-group-label" data-i18n="settingsSeatSize">Pultstorleik</label>
+            <div class="rap-size-controls">
+              <input type="range" class="rap-seat-size" min="100" max="220" step="5">
+              <label class="rap-auto-label"><span data-i18n="seatSizeAuto">Automatisk</span> <input type="checkbox" class="rap-seat-auto"></label>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -243,7 +278,7 @@
       </div>
       <button id="btnClearGroups" data-i18n="clearGroups">Tøm grupper</button>
       <span class="spacer"></span>
-      <button id="btnCopyGroups" data-i18n="copyGroups">Kopier grupper som tekst</button>
+      <button id="btnCopyGroups" class="needs-save" data-i18n="copyGroups">Kopier grupper som tekst</button>
     </div>
     <div class="seating-layout">
       <div class="pool-panel side-panel" id="groupPoolPanel">

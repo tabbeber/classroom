@@ -22,6 +22,7 @@ function newClassData() {
     sessions: [], blacklist: [], genders: {}, gender_weight_mode: 'ingen',
     room_states: {}, // andre (ikkje-aktive) rom denne klassen har brukt: romId -> {arrangement, locked, sessions}
     group_settings: { mode: 'count', value: 4 }, group_assignment: {}, group_names: {}, // Grupper-fana (uavhengig av rom)
+    absent_today: {}, // studentnamn -> datostreng (YYYY-MM-DD), nullstillar seg sjølv neste dag
   };
 }
 // Lagra tilstanden (plassering/lås/historikk) for det NO aktive romet unna,
@@ -181,6 +182,26 @@ function autoPopulateRoom(r, studentCount) {
     }
   }
 }
+// Hesteskoform: enkeltpultar langs ein U-forma bane - venstre side ned,
+// botnrada bortover, høgre side opp att. Sidan minste raw-y alltid vert
+// rendra næraste tavla (uavhengig av snu-status), hamnar opninga i U-en
+// automatisk mot tavla når raden øvst (row 0) berre har hjørnepultane.
+function generateHorseshoe(r, n) {
+  r.groups = {}; r.seat_zones = {};
+  n = Math.max(1, n || 0);
+  const bottomCols = Math.max(2, Math.round(n / 3));
+  const sideRows = Math.max(1, Math.ceil((n - bottomCols) / 2));
+  const cellW = SEAT_W + SEAT_GAP, cellH = SEAT_H + SEAT_GAP;
+  let placed = 0;
+  const addSeat = (col, row) => {
+    if (placed >= n) return;
+    addGroup(r, 20 + col * cellW, 20 + row * cellH, 1, 1);
+    placed++;
+  };
+  for (let row = 0; row < sideRows && placed < n; row++) addSeat(0, row);
+  for (let col = 0; col < bottomCols && placed < n; col++) addSeat(col, sideRows);
+  for (let row = sideRows - 1; row >= 0 && placed < n; row--) addSeat(bottomCols - 1, row);
+}
 
 // -- Klasse-hjelparar --
 function studentSeat(cls, name) {
@@ -241,11 +262,27 @@ function groupCountFor(cls) {
 // genderMode: 'none' (kun tilfeldig), 'even' (kvar gruppe skal ha ei jamn
 // blanding av kjønn), 'uneven' (kvar gruppe skal helst vere einsarta).
 // Svarteliste vert alltid vekta tyngst og har alltid førsteprioritet.
+// -- Fråverande i dag (Grupper-fana) - nullstillar seg sjølv neste dag --
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+function isAbsentToday(cls, name) { return !!(cls.absent_today && cls.absent_today[name] === todayStr()); }
+function setAbsentToday(cls, name, absent) {
+  cls.absent_today = cls.absent_today || {};
+  if (absent) { cls.absent_today[name] = todayStr(); delete cls.group_assignment[name]; }
+  else delete cls.absent_today[name];
+}
+// Ryddar bort gårsdagens (og eldre) fråversmerke - kalla ved klassebyte,
+// slik at læraren slepp å hugse å fjerne merkinga manuelt neste dag.
+function cleanStaleAbsences(cls) {
+  if (!cls.absent_today) return;
+  const today = todayStr();
+  for (const name of Object.keys(cls.absent_today)) if (cls.absent_today[name] !== today) delete cls.absent_today[name];
+}
 function generateTeamGroups(cls, groupCount, genderMode = 'none') {
   const blSet = blacklistSet(cls), n = Math.max(1, groupCount);
+  const eligible = cls.students.filter(s => !isAbsentToday(cls, s));
   let best = null, bestScore = Infinity;
   for (let attempt = 0; attempt < 300; attempt++) {
-    const shuffled = shuffle([...cls.students]);
+    const shuffled = shuffle([...eligible]);
     const groups = Array.from({ length: n }, () => []);
     shuffled.forEach((name, i) => groups[i % n].push(name));
     let score = 0;
@@ -531,6 +568,7 @@ function normalizeClassData(raw) {
   cls.group_settings = raw.group_settings || { mode: 'count', value: 4 };
   cls.group_assignment = raw.group_assignment || {};
   cls.group_names = raw.group_names || {};
+  cls.absent_today = raw.absent_today || {};
 
   const version = raw.version || 1;
   if (version >= CLASS_VERSION) {
@@ -550,7 +588,7 @@ function normalizeClassData(raw) {
 // LocalStorage: klassar, rom, innstillingar
 // ===================================================================
 const LS_INDEX = 'krp.index', LS_CLASS = 'krp.class.', LS_SETTINGS = 'krp.settings', LS_LANG = 'krp.lang';
-const LS_ROOM_INDEX = 'krp.roomIndex', LS_ROOM = 'krp.room.';
+const LS_ROOM_INDEX = 'krp.roomIndex', LS_ROOM = 'krp.room.', LS_LAYOUT_TEMPLATES = 'krp.layoutTemplates';
 
 function loadIndex() {
   try { return JSON.parse(localStorage.getItem(LS_INDEX)) || { order: [], names: {}, defaultId: null }; }
@@ -640,6 +678,21 @@ const Store = {
       if (c && c.room_id === roomId) out.push({ id, name: idx.names[id] });
     }
     return out;
+  },
+
+  // -- oppsett-malar (gjenbrukbare romoppsett, uavhengig av det einskilde romet) --
+  listLayoutTemplates() {
+    try { return JSON.parse(localStorage.getItem(LS_LAYOUT_TEMPLATES)) || []; } catch { return []; }
+  },
+  saveLayoutTemplate(name, groups, seatZones) {
+    const list = this.listLayoutTemplates();
+    const id = newId('lt');
+    list.push({ id, name, groups: JSON.parse(JSON.stringify(groups)), seat_zones: JSON.parse(JSON.stringify(seatZones)) });
+    localStorage.setItem(LS_LAYOUT_TEMPLATES, JSON.stringify(list));
+    return id;
+  },
+  deleteLayoutTemplate(id) {
+    localStorage.setItem(LS_LAYOUT_TEMPLATES, JSON.stringify(this.listLayoutTemplates().filter(x => x.id !== id)));
   },
 
   // -- innstillingar / språk --

@@ -198,6 +198,8 @@ function renderAllRoomViews() {
   renderRoom('roomCanvasB', 'seating', App.zoomSeat);
   document.getElementById('roomSeatCount').textContent = t('roomTotalSeats', { n: allSeatIds(App.room).length });
   updateStatusBar();
+  const previewBtn = document.getElementById('btnPreviewImage');
+  if (previewBtn) previewBtn.classList.toggle('needs-save', Object.keys(App.data.arrangement).length > 0);
 }
 
 // -- Drag: flytt bordgruppe (rom-fana) / flytt elev (plasserings-fana) --
@@ -575,22 +577,46 @@ function openEditGroupModal(gid) {
   };
 }
 function openQuickGridModal() {
+  const templates = Store.listLayoutTemplates();
   const modal = openModal(`
     <h2>${t('gridTitle')}</h2>
-    <div class="row"><label>${t('gridRows')}</label><input type="number" id="qgRows" value="3" min="1" max="12"></div>
-    <div class="row"><label>${t('gridCols')}</label><input type="number" id="qgCols" value="4" min="1" max="12"></div>
-    <p><b>${t('gridStyle')}</b></p>
-    <label style="display:block"><input type="radio" name="qgStyle" value="enkelt"> ${t('gridSingle')}</label>
-    <label style="display:block"><input type="radio" name="qgStyle" value="par" checked> ${t('gridPair')}</label>
-    <label style="display:block"><input type="radio" name="qgStyle" value="firar"> ${t('gridQuad')}</label>
-    <button id="qgFitStudents" style="margin-top:.4rem">${t('gridFitStudents', { n: App.data.students.length })}</button>
-    <label style="display:block;margin-top:.4rem"><input type="checkbox" id="qgExactFit"> ${t('gridExactFit')}</label>
-    <p><b>${t('gridWindow')}</b></p>
-    <label style="display:block"><input type="radio" name="qgWin" value="ingen" checked> ${t('winNone')}</label>
-    <label style="display:block"><input type="radio" name="qgWin" value="venstre"> ${t('winLeft')}</label>
-    <label style="display:block"><input type="radio" name="qgWin" value="hoyre"> ${t('winRight')}</label>
-    <label style="display:block"><input type="radio" name="qgWin" value="begge"> ${t('winBoth')}</label>
+    <p><b>${t('layoutModeLabel')}</b></p>
+    <label style="display:block"><input type="radio" name="qgMode" value="grid" checked> ${t('layoutModeGrid')}</label>
+    <label style="display:block"><input type="radio" name="qgMode" value="horseshoe"> ${t('layoutModeHorseshoe')}</label>
+    ${templates.length ? `<label style="display:block"><input type="radio" name="qgMode" value="saved"> ${t('layoutModeSaved')}</label>` : ''}
+    <hr style="margin:.6rem 0; border-color:var(--panel-border)">
+    <div id="qgGridOptions">
+      <div class="row"><label>${t('gridRows')}</label><input type="number" id="qgRows" value="3" min="1" max="12"></div>
+      <div class="row"><label>${t('gridCols')}</label><input type="number" id="qgCols" value="4" min="1" max="12"></div>
+      <p><b>${t('gridStyle')}</b></p>
+      <label style="display:block"><input type="radio" name="qgStyle" value="enkelt"> ${t('gridSingle')}</label>
+      <label style="display:block"><input type="radio" name="qgStyle" value="par" checked> ${t('gridPair')}</label>
+      <label style="display:block"><input type="radio" name="qgStyle" value="firar"> ${t('gridQuad')}</label>
+      <button id="qgFitStudents" style="margin-top:.4rem">${t('gridFitStudents', { n: App.data.students.length })}</button>
+      <label style="display:block;margin-top:.4rem"><input type="checkbox" id="qgExactFit"> ${t('gridExactFit')}</label>
+      <p><b>${t('gridWindow')}</b></p>
+      <label style="display:block"><input type="radio" name="qgWin" value="ingen" checked> ${t('winNone')}</label>
+      <label style="display:block"><input type="radio" name="qgWin" value="venstre"> ${t('winLeft')}</label>
+      <label style="display:block"><input type="radio" name="qgWin" value="hoyre"> ${t('winRight')}</label>
+      <label style="display:block"><input type="radio" name="qgWin" value="begge"> ${t('winBoth')}</label>
+    </div>
+    <div id="qgHorseshoeOptions" style="display:none">
+      <p class="hint">${t('horseshoeHint')}</p>
+      <div class="row"><label>${t('horseshoeSeats')}</label><input type="number" id="qgHorseshoeN" value="${Math.max(3, App.data.students.length || 12)}" min="3" max="60"></div>
+    </div>
+    <div id="qgSavedOptions" style="display:none">
+      <select id="qgSavedSelect">${templates.map(t2 => `<option value="${t2.id}">${escapeHtml(t2.name)}</option>`).join('')}</select>
+      <button id="qgDeleteSaved" class="danger" style="margin-left:.4rem">${t('deleteSavedLayout')}</button>
+    </div>
     <div class="actions"><button id="qgCancel">${t('cancel')}</button><button id="qgOk" class="primary">${t('confirm')}</button></div>`);
+
+  const showMode = mode => {
+    modal.querySelector('#qgGridOptions').style.display = mode === 'grid' ? '' : 'none';
+    modal.querySelector('#qgHorseshoeOptions').style.display = mode === 'horseshoe' ? '' : 'none';
+    modal.querySelector('#qgSavedOptions').style.display = mode === 'saved' ? '' : 'none';
+  };
+  modal.querySelectorAll('input[name=qgMode]').forEach(r => r.onchange = () => showMode(r.value));
+
   modal.querySelector('#qgFitStudents').onclick = () => {
     const style = modal.querySelector('input[name=qgStyle]:checked').value;
     const seatsPerTable = { enkelt: 1, par: 2, firar: 4 }[style];
@@ -602,10 +628,34 @@ function openQuickGridModal() {
     modal.querySelector('#qgCols').value = cols;
     modal.querySelector('#qgExactFit').checked = true;
   };
+  const delBtn = modal.querySelector('#qgDeleteSaved');
+  if (delBtn) delBtn.onclick = () => {
+    const sel = modal.querySelector('#qgSavedSelect'); if (!sel.value) return;
+    if (!confirm(t('confirmDeleteSavedLayout'))) return;
+    Store.deleteLayoutTemplate(sel.value);
+    closeModal(); openQuickGridModal();
+  };
   modal.querySelector('#qgCancel').onclick = closeModal;
   modal.querySelector('#qgOk').onclick = () => {
     const room = App.data, r = App.room;
     if (Object.keys(r.groups).length && !confirm(t('confirmOverwriteGrid'))) return;
+    const mode = modal.querySelector('input[name=qgMode]:checked').value;
+
+    if (mode === 'horseshoe') {
+      const n = Math.max(3, parseInt(modal.querySelector('#qgHorseshoeN').value) || 12);
+      generateHorseshoe(r, n);
+      markRoomDirty(); closeModal(); renderAllRoomViews(); renderPool();
+      return;
+    }
+    if (mode === 'saved') {
+      const sel = modal.querySelector('#qgSavedSelect'); if (!sel.value) return;
+      const tpl = Store.listLayoutTemplates().find(x => x.id === sel.value); if (!tpl) return;
+      r.groups = JSON.parse(JSON.stringify(tpl.groups));
+      r.seat_zones = JSON.parse(JSON.stringify(tpl.seat_zones));
+      markRoomDirty(); closeModal(); renderAllRoomViews(); renderPool();
+      return;
+    }
+
     const rows = parseInt(modal.querySelector('#qgRows').value) || 1, cols = parseInt(modal.querySelector('#qgCols').value) || 1;
     const style = modal.querySelector('input[name=qgStyle]:checked').value, win = modal.querySelector('input[name=qgWin]:checked').value;
     const exactFit = modal.querySelector('#qgExactFit').checked;
@@ -633,6 +683,23 @@ function openQuickGridModal() {
     }
     markRoomDirty(); closeModal(); renderAllRoomViews(); renderPool();
   };
+}
+function openSaveLayoutModal() {
+  const r = App.room;
+  if (!Object.keys(r.groups).length) { alert(t('emptyRoomCantSave')); return; }
+  const modal = openModal(`
+    <h2>${t('saveLayoutTitle')}</h2>
+    <p class="hint">${t('saveLayoutHelp')}</p>
+    <input type="text" id="slName" placeholder="${t('saveLayoutPlaceholder')}" style="width:100%">
+    <div class="actions"><button id="slCancel">${t('cancel')}</button><button id="slOk" class="primary">${t('confirm')}</button></div>`);
+  const input = modal.querySelector('#slName'); input.focus();
+  modal.querySelector('#slCancel').onclick = closeModal;
+  modal.querySelector('#slOk').onclick = () => {
+    const name = input.value.trim(); if (!name) return;
+    Store.saveLayoutTemplate(name, r.groups, r.seat_zones);
+    closeModal(); setStatus(t('layoutSaved'));
+  };
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') modal.querySelector('#slOk').click(); });
 }
 function openFullHistoryModal() {
   const room = App.room, cls = App.data;
@@ -755,11 +822,6 @@ async function drawSeatingChart(canvas, flipped, arrangementOverride, titleOverr
     wrapText(ctx, student || t('empty'), px + seatW / 2, py + seatH / 2, seatW - 12, 17);
   }
 }
-async function exportImage() {
-  const canvas = document.createElement('canvas');
-  await drawSeatingChart(canvas, App.room.view_flipped, null, null, App.settings.exportWhiteBg);
-  downloadDataUrl(canvas.toDataURL('image/png'), 'klasseromplassering.png');
-}
 async function openImagePreviewModal() {
   let flipped = App.room.view_flipped, whiteBg = !!App.settings.exportWhiteBg;
   const modal = openModal(`
@@ -772,21 +834,41 @@ async function openImagePreviewModal() {
       <button id="pvClose">${t('close')}</button>
     </div>
     <div class="preview-appearance-row">
-      <label data-i18n="settingsRadius">${t('settingsRadius')}</label>
-      <input type="range" class="rap-radius" min="0" max="24" step="1">
-      <label data-i18n="settingsBlur">${t('settingsBlur')}</label>
-      <input type="range" class="rap-blur" min="0" max="20" step="1">
-      <label data-i18n="settingsOpacity">${t('settingsOpacity')}</label>
-      <input type="range" class="rap-opacity" min="0.2" max="1" step="0.05">
-      <label class="row"><input type="checkbox" class="rap-seat-auto"> ${t('seatSizeAuto')}</label>
-      <input type="range" class="rap-seat-size" min="100" max="220" step="5">
+      <div class="rap-group">
+        <label data-i18n="settingsRadius">${t('settingsRadius')}</label>
+        <input type="range" class="rap-radius" min="0" max="24" step="1">
+      </div>
+      <div class="rap-group">
+        <label data-i18n="settingsBlur">${t('settingsBlur')}</label>
+        <input type="range" class="rap-blur" min="0" max="20" step="1">
+      </div>
+      <div class="rap-group">
+        <label data-i18n="settingsOpacity">${t('settingsOpacity')}</label>
+        <input type="range" class="rap-opacity" min="0.2" max="1" step="0.05">
+      </div>
+      <div class="rap-group">
+        <label>${t('settingsSeatSize')}</label>
+        <div class="rap-size-controls">
+          <input type="range" class="rap-seat-size" min="100" max="220" step="5">
+          <label class="rap-auto-label">${t('seatSizeAuto')} <input type="checkbox" class="rap-seat-auto"></label>
+        </div>
+      </div>
     </div>
-    <div id="pvCanvasWrap" style="max-height:65vh; overflow:auto; border:1px solid var(--panel-border); border-radius:8px; text-align:center;">
-      <canvas id="pvCanvas" style="max-width:100%; height:auto; display:inline-block;"></canvas>
+    <div id="pvCanvasWrap" style="text-align:center;">
+      <canvas id="pvCanvas" style="display:inline-block;"></canvas>
     </div>`);
   modal.style.maxWidth = '92vw';
   const canvas = modal.querySelector('#pvCanvas');
-  const redraw = async () => { await drawSeatingChart(canvas, flipped, null, null, whiteBg); };
+  const fitCanvasToView = () => {
+    // Skaler visinga (ikkje sjølve oppløysinga) slik at HEILE romet alltid
+    // er synleg utan å rulle, uansett kor høgt/breitt oppsettet er (t.d. hestesko).
+    const maxW = Math.min(window.innerWidth * 0.86, 1400);
+    const maxH = window.innerHeight * 0.62;
+    const scale = Math.min(maxW / canvas.width, maxH / canvas.height, 1);
+    canvas.style.width = Math.round(canvas.width * scale) + 'px';
+    canvas.style.height = Math.round(canvas.height * scale) + 'px';
+  };
+  const redraw = async () => { await drawSeatingChart(canvas, flipped, null, null, whiteBg); fitCanvasToView(); };
   await redraw();
   modal.querySelector('#pvFlip').onclick = async () => { flipped = !flipped; await redraw(); };
   modal.querySelector('#pvWhiteBg').onchange = async e => {
@@ -870,8 +952,9 @@ function renderGroupPool() {
   const unassigned = App.data.students.filter(n => assigned[n] === undefined);
   for (const name of unassigned) {
     const el = document.createElement('div');
-    el.className = 'pool-item' + (App.armedStudent === name ? ' armed' : '');
+    el.className = 'pool-item' + (App.armedStudent === name ? ' armed' : '') + (isAbsentToday(App.data, name) ? ' absent' : '');
     el.textContent = name; el.dataset.name = name;
+    if (isAbsentToday(App.data, name)) el.title = t('absentHint');
     attachGroupItemEvents(el, name);
     wrap.appendChild(el);
   }
@@ -922,7 +1005,19 @@ function renderGroupCards() {
     wrap.appendChild(card);
   }
 }
-function attachGroupItemEvents(el, name) { el.addEventListener('pointerdown', e => onGroupItemPointerDown(e, name)); }
+function attachGroupItemEvents(el, name) {
+  el.addEventListener('pointerdown', e => onGroupItemPointerDown(e, name));
+  el.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    const absent = isAbsentToday(App.data, name);
+    showMenuAt(e.clientX, e.clientY, [
+      [absent ? t('markPresent') : t('markAbsent'), () => {
+        setAbsentToday(App.data, name, !absent);
+        saveCurrentClass(); renderGroupsTab();
+      }],
+    ]);
+  });
+}
 function onGroupItemPointerDown(e, name) {
   if (e.button !== 0) return; e.preventDefault();
   const el = e.currentTarget;
@@ -1047,13 +1142,31 @@ function renderInfoPanel() {
 }
 
 // -- Klasse-fane: klassar, elevar+kjønn (samla), svarteliste --
+// Fangar opp både heilt nye brukarar OG eksisterande brukarar som har éin
+// (eller fleire) klasse(r) frå før, men aldri har lagt til nokon elevar.
+function looksUnused() {
+  const classes = Store.listClasses();
+  if (!classes.length) return true;
+  return classes.every(c => {
+    const data = Store.loadClass(c.id);
+    return !data || !data.students || data.students.length === 0;
+  });
+}
 function renderClassTab() {
   const list = document.getElementById('classList');
   const classes = Store.listClasses(), defId = Store.getDefaultId();
   list.innerHTML = classes.length ? '' : `<p class="hint">${t('noClasses')}</p>`;
   for (const c of classes) {
     const row = document.createElement('div'); row.className = 'item' + (c.id === App.classId ? ' active' : '');
-    row.innerHTML = `<span class="name">${escapeHtml(c.name)}</span>` + (c.id === defId ? `<span class="hint">(${t('defaultClass')})</span>` : '');
+    const input = document.createElement('input'); input.className = 'inline-name-input'; input.value = c.name;
+    input.onclick = e => e.stopPropagation();
+    input.onchange = () => {
+      const v = input.value.trim();
+      if (!v || v === c.name) { input.value = c.name; return; }
+      Store.renameClass(c.id, v); renderClassTab();
+    };
+    row.appendChild(input);
+    if (c.id === defId) { const hint = document.createElement('span'); hint.className = 'hint'; hint.textContent = `(${t('defaultClass')})`; row.appendChild(hint); }
     row.onclick = () => switchClass(c.id);
     list.appendChild(row);
   }
@@ -1066,15 +1179,18 @@ function renderClassTab() {
   document.getElementById('noClassBanner').style.display = hasClass ? 'none' : '';
   document.getElementById('studentsPanel').style.display = hasClass ? '' : 'none';
   document.getElementById('blacklistPanel').style.display = hasClass ? '' : 'none';
+  document.getElementById('btnNewClass').classList.toggle('needs-save', looksUnused());
   if (!hasClass) return;
 
   renderStudentRows();
   renderBlacklistUI();
 }
 function renderStudentRows() {
-  const wrap = document.getElementById('studentRows'); wrap.innerHTML = '';
+  const col1 = document.getElementById('studentRowsCol1'), col2 = document.getElementById('studentRowsCol2');
+  col1.innerHTML = ''; col2.innerHTML = '';
   const opts = [['', '\u2013', t('genderNone')], ['Jente', 'J', t('genderGirl')], ['Gut', 'G', t('genderBoy')]];
-  for (const name of App.data.students) {
+  const PER_COL = 15;
+  App.data.students.forEach((name, idx) => {
     const row = document.createElement('div'); row.className = 'student-row';
     const input = document.createElement('input'); input.type = 'text'; input.className = 'name-input'; input.value = name;
     input.onchange = () => {
@@ -1102,9 +1218,10 @@ function renderStudentRows() {
       saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab();
     };
     row.appendChild(rm);
-    wrap.appendChild(row);
-  }
-  if (!App.data.students.length) wrap.innerHTML = `<p class="hint">${t('noStudents')}</p>`;
+    (idx < PER_COL ? col1 : col2).appendChild(row);
+  });
+  col2.style.display = App.data.students.length > PER_COL ? '' : 'none';
+  if (!App.data.students.length) col1.innerHTML = `<p class="hint">${t('noStudents')}</p>`;
 }
 function addStudentsFromText(text) {
   const cls = App.data, existing = new Set(cls.students);
@@ -1167,6 +1284,9 @@ function renderRoomTab() {
   const hasRoom = !!App.roomId;
   document.getElementById('noRoomBanner').style.display = hasRoom ? 'none' : '';
   document.getElementById('roomEditArea').style.display = hasRoom ? '' : 'none';
+  const nameInput = document.getElementById('roomNameInput');
+  nameInput.style.display = hasRoom ? '' : 'none';
+  if (hasRoom) nameInput.value = (rooms.find(r => r.id === App.roomId) || {}).name || '';
 }
 
 // -- Klasse-/rom-bytte og sjølvlækjande rom-tilknyting --
@@ -1195,6 +1315,9 @@ function switchClass(id) {
   if (!confirmLeaveRoomDraft()) return false;
   App.classId = id;
   App.data = Store.loadClass(id) || newClassData();
+  const staleBefore = JSON.stringify(App.data.absent_today || {});
+  cleanStaleAbsences(App.data);
+  if (JSON.stringify(App.data.absent_today || {}) !== staleBefore) saveCurrentClass();
   loadRoomForCurrentClass();
   App.selectedSeat = null; App.selectedStudent = null; App.multiSelected = new Set(); App.armedStudent = null;
   App.roomDirty = false; updateRoomDraftBar();
@@ -1232,6 +1355,8 @@ function markRoomDirty() {
 function updateRoomDraftBar() {
   const bar = document.getElementById('roomDraftBar');
   if (bar) bar.classList.toggle('show', App.roomDirty);
+  const btn = document.getElementById('btnSaveRoomDraft');
+  if (btn) btn.classList.toggle('needs-save', App.roomDirty);
 }
 function saveRoomDraft() {
   saveCurrentRoom();
@@ -1385,9 +1510,8 @@ function wireEvents() {
     switchClass(Store.createClass(name, null)); renderClassTab();
   };
   document.getElementById('btnRenameClass').onclick = () => {
-    const cur = Store.listClasses().find(c => c.id === App.classId); if (!cur) return;
-    const name = prompt(t('renameClassPrompt'), cur.name); if (!name) return;
-    Store.renameClass(App.classId, name); renderClassTab();
+    const input = document.querySelector('#classList .item.active .inline-name-input');
+    if (input) { input.focus(); input.select(); }
   };
   document.getElementById('btnDuplicateClass').onclick = () => {
     if (!confirmLeaveRoomDraft()) return;
@@ -1473,10 +1597,11 @@ function wireEvents() {
     const id = Store.createRoom(name, { autoPopulateFor: App.data.students.length });
     switchRoom(id); renderRoomTab();
   };
-  document.getElementById('btnRenameRoom').onclick = () => {
-    const cur = Store.listRooms().find(r => r.id === App.roomId); if (!cur) return;
-    const name = prompt(t('renameRoomPrompt'), cur.name); if (!name) return;
-    Store.renameRoom(App.roomId, name); renderRoomTab();
+  document.getElementById('roomNameInput').onchange = e => {
+    const v = e.target.value.trim();
+    if (!App.roomId) return;
+    if (!v) { renderRoomTab(); return; }
+    Store.renameRoom(App.roomId, v); renderRoomTab();
   };
   document.getElementById('btnDuplicateRoom').onclick = () => {
     const cur = Store.listRooms().find(r => r.id === App.roomId);
@@ -1500,6 +1625,7 @@ function wireEvents() {
   };
   document.getElementById('btnAddGroup').onclick = openAddGroupModal;
   document.getElementById('btnQuickGrid').onclick = openQuickGridModal;
+  document.getElementById('btnSaveLayout').onclick = openSaveLayoutModal;
   document.getElementById('btnSeatMenu').onclick = openMenuForSelection;
   document.getElementById('btnBulkZones').onclick = openBulkZonesModal;
   document.getElementById('btnClearSelection').onclick = clearSelection;
@@ -1567,7 +1693,6 @@ function wireEvents() {
   document.getElementById('btnFullHistory').onclick = openFullHistoryModal;
   document.getElementById('btnHistoryBrowser').onclick = openHistoryBrowserModal;
   document.getElementById('btnPreviewImage').onclick = openImagePreviewModal;
-  document.getElementById('btnExportImage').onclick = exportImage;
   document.getElementById('poolCollapseBtn').onclick = () => toggleSidePanel(document.getElementById('poolPanel'), 'poolCollapsed');
   document.getElementById('infoCollapseBtn').onclick = () => toggleSidePanel(document.getElementById('infoPanelWrap'), 'infoCollapsed');
 
