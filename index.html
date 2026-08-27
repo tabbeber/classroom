@@ -36,6 +36,11 @@
 
   <!-- ===================== KLASSE ===================== -->
   <section id="tab-class" class="tabview active">
+    <div id="noClassBanner" class="panel welcome-banner" style="display:none">
+      <h2 data-i18n="welcomeTitle">Velkomen!</h2>
+      <p data-i18n="welcomeText">Du har ingen klassar enno. Trykk "Ny klasse" til venstre for å kome i gang.</p>
+    </div>
+
     <div class="class-top-grid">
       <div class="panel">
         <h2 data-i18n="classesHeading">Klassar</h2>
@@ -52,7 +57,7 @@
         </div>
       </div>
 
-      <div class="panel">
+      <div class="panel" id="studentsPanel">
         <h2 data-i18n="studentsHeading">Elevar</h2>
         <p class="hint" data-i18n="studentsHelp">Namn og kjønn for kvar elev. Lim inn fleire namn (eitt per linje) i feltet for å leggje til mange på éin gong.</p>
         <div id="studentRows" class="student-rows-scroll"></div>
@@ -65,8 +70,8 @@
       </div>
     </div>
 
-    <div class="panel">
-      <h2 data-i18n="blacklistHeading">Svarteliste</h2>
+    <div class="panel" id="blacklistPanel">
+      <h2 data-i18n="blacklistHeading">Unngå-liste</h2>
       <p class="hint" data-i18n="blacklistHelp">Elevpar som ikkje bør sitje saman.</p>
       <div class="blacklist-grid">
         <div>
@@ -93,6 +98,11 @@
       <button id="btnDuplicateRoom" data-i18n="duplicateRoom">Kopier</button>
       <button id="btnDeleteRoom" class="danger" data-i18n="deleteRoom">Slett</button>
     </div>
+    <div id="noRoomBanner" class="panel welcome-banner" style="display:none">
+      <h2 data-i18n="noRoomTitle">Ingen rom enno</h2>
+      <p data-i18n="noRoomText">Trykk "Nytt rom" ovanfor for å setje opp ditt første klasserom.</p>
+    </div>
+    <div id="roomEditArea">
     <div class="toolbar">
       <button id="btnAddGroup" class="primary" data-i18n="roomToolbarAdd">+ Bordgruppe</button>
       <button id="btnQuickGrid" data-i18n="roomToolbarGrid">Lag rutenett automatisk...</button>
@@ -144,6 +154,7 @@
           <input type="range" class="rap-seat-size" min="100" max="220" step="5">
         </div>
       </div>
+    </div>
     </div>
   </section>
 

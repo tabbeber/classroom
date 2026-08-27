@@ -1060,7 +1060,13 @@ function renderClassTab() {
   const sel = document.getElementById('classSelect');
   sel.innerHTML = '';
   for (const c of classes) sel.appendChild(new Option(c.name, c.id));
-  sel.value = App.classId;
+  sel.value = App.classId || '';
+
+  const hasClass = !!App.classId;
+  document.getElementById('noClassBanner').style.display = hasClass ? 'none' : '';
+  document.getElementById('studentsPanel').style.display = hasClass ? '' : 'none';
+  document.getElementById('blacklistPanel').style.display = hasClass ? '' : 'none';
+  if (!hasClass) return;
 
   renderStudentRows();
   renderBlacklistUI();
@@ -1156,8 +1162,11 @@ function renderRoomTab() {
     const sel = document.getElementById(selId);
     sel.innerHTML = '';
     for (const r of rooms) sel.appendChild(new Option(r.name, r.id));
-    sel.value = App.roomId;
+    sel.value = App.roomId || '';
   }
+  const hasRoom = !!App.roomId;
+  document.getElementById('noRoomBanner').style.display = hasRoom ? 'none' : '';
+  document.getElementById('roomEditArea').style.display = hasRoom ? '' : 'none';
 }
 
 // -- Klasse-/rom-bytte og sjølvlækjande rom-tilknyting --
@@ -1170,13 +1179,15 @@ function loadRoomForCurrentClass() {
   let roomId = App.data.room_id;
   let room = roomId ? Store.loadRoom(roomId) : null;
   if (!room) {
-    roomId = Store.createRoom(t('newRoom'), { autoPopulateFor: App.data.students.length });
-    App.data.room_id = roomId;
-    // Romtilvisinga var ugyldig (sletta/manglar) - gamal plassering/lås/historikk
-    // høyrer ikkje til det nye, tomme romet, så vi startar reint.
-    App.data.arrangement = {}; App.data.locked = {}; App.data.sessions = [];
-    saveCurrentClass();
-    room = Store.loadRoom(roomId);
+    // Enten ei heilt ny klasse, eller ei ugyldig romtilvising (sletta rom).
+    // Vi opprettar IKKJE automatisk lenger - brukaren lagar sjølv sitt rom.
+    if (roomId) {
+      App.data.room_id = null;
+      App.data.arrangement = {}; App.data.locked = {}; App.data.sessions = [];
+      saveCurrentClass();
+    }
+    App.roomId = null; App.room = newRoomData();
+    return;
   }
   App.roomId = roomId; App.room = room;
 }
@@ -1749,8 +1760,19 @@ function init() {
   updateZoomLabel('Room'); updateZoomLabel('Seat');
 
   let defId = Store.getDefaultId();
-  if (!defId) defId = Store.createClass(t('newClass'), null);
-  switchClass(defId);
+  if (Store.listClasses().length === 0) {
+    // Heilt fyrste gong appen vert opna: ikkje opprett noko automatisk.
+    // Brukaren lagar sjølv si fyrste klasse (og seinare sitt fyrste rom).
+    App.classId = null;
+    App.data = newClassData();
+    App.roomId = null; App.room = newRoomData();
+    App.selectedSeat = null; App.selectedStudent = null; App.multiSelected = new Set(); App.armedStudent = null;
+    fillGenderModeSelect(); syncFlipButton();
+    renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab();
+  } else {
+    if (!defId) defId = Store.createClass(t('newClass'), null);
+    switchClass(defId);
+  }
 
   window.addEventListener('beforeunload', e => {
     if (App.roomDirty) { e.preventDefault(); e.returnValue = ''; }
