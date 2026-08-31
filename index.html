@@ -39,7 +39,6 @@
 <nav class="tabs">
   <button class="tab-btn active" data-tab="class"><span data-i18n="tabClass">Klasse</span></button>
   <button class="tab-btn" data-tab="room"><span data-i18n="tabRoom">Klasserom</span></button>
-  <button class="tab-btn" data-tab="seating"><span data-i18n="tabSeating">Plassering</span></button>
   <button class="tab-btn" data-tab="groups"><span data-i18n="tabGroups">Grupper</span></button>
   <button class="tab-btn" data-tab="settings"><span data-i18n="tabSettings">Innstillingar</span></button>
 </nav>
@@ -54,13 +53,8 @@
         <div id="classList" class="class-list"></div>
         <div class="toolbar" style="margin-top:.6rem">
           <button id="btnNewClass" class="primary" data-i18n="newClass">Ny klasse</button>
-          <button id="btnRenameClass" data-i18n="renameClass">Endre namn</button>
           <button id="btnDuplicateClass" data-i18n="duplicateClass">Kopier</button>
-          <button id="btnDeleteClass" class="danger" data-i18n="deleteClass">Slett</button>
           <button id="btnSetDefault" data-i18n="setDefault">Set som standard</button>
-          <button id="btnExportClass" data-i18n="exportClass">Last ned fil</button>
-          <button id="btnImportClass" data-i18n="importClass">Last opp fil</button>
-          <input type="file" id="importClassFile" accept="application/json" hidden>
         </div>
       </div>
 
@@ -105,157 +99,157 @@
 
   <!-- ===================== KLASSEROM ===================== -->
   <section id="tab-room" class="tabview">
-    <div class="toolbar">
-      <span data-i18n="roomHeading">Rom:</span>
-      <select id="roomSelect"></select>
-      <input type="text" id="roomNameInput" class="inline-name-input" style="max-width:180px">
-      <button id="btnNewRoom" data-i18n="newRoom">Nytt rom</button>
-      <button id="btnDuplicateRoom" data-i18n="duplicateRoom">Kopier</button>
-      <button id="btnDeleteRoom" class="danger" data-i18n="deleteRoom">Slett</button>
-    </div>
-    <div id="noRoomBanner" class="panel welcome-banner" style="display:none">
-      <h2 data-i18n="noRoomTitle">Ingen rom enno</h2>
-      <p data-i18n="noRoomText">Trykk "Nytt rom" ovanfor for å setje opp ditt første klasserom.</p>
-    </div>
-    <div id="roomEditArea">
-    <div class="toolbar">
-      <button id="btnAddGroup" class="primary" data-i18n="roomToolbarAdd">+ Bordgruppe</button>
-      <button id="btnQuickGrid" data-i18n="roomToolbarGrid">Lag rutenett automatisk...</button>
-      <button id="btnSaveLayout" data-i18n="saveLayoutBtn">Lagra som mal...</button>
-      <button id="btnAutoFrontBack" data-i18n="autoFrontBack">Auto-merk framme/bak</button>
-      <button id="btnFlipRoom" class="toggle">Snu visning</button>
-      <span class="spacer"></span>
-      <span data-i18n="zoomLabel">Skala</span>
-      <button id="zoomOutRoom">-</button>
-      <span id="zoomLabelRoom">100%</span>
-      <button id="zoomInRoom">+</button>
-      <button id="zoomResetRoom" data-i18n="zoomReset">Tilbakestill</button>
-    </div>
-    <div class="toolbar">
-      <button id="btnSeatMenu" data-i18n="seatMenuBtn">&#9776; Meny for valde</button>
-      <button id="btnBulkZones" data-i18n="bulkZonesBtn">Rediger soner (valde)</button>
-      <button id="btnMergeGroups" data-i18n="mergeGroups">Slå saman valde bord</button>
-      <button id="btnSplitGroups" data-i18n="splitGroups">Skil ut valde plassar</button>
-      <button id="btnClearSelection" data-i18n="clearSelection">Merk ingen</button>
-      <span class="hint" id="roomSeatCount"></span>
-      <span class="spacer"></span>
-      <button id="btnRoomAppearance" class="toggle" data-i18n="roomAppearanceBtn">Utsjånad</button>
-    </div>
-    <div class="draft-bar" id="roomDraftBar">
-      <span class="draft-bar-icon">&#9888;</span>
-      <span data-i18n="roomDraftPending">Ulagra endringar i romoppsettet</span>
-      <span class="spacer"></span>
-      <button id="btnDiscardRoomDraft" class="danger" data-i18n="discardRoomDraft">Forkast endringar</button>
-      <button id="btnSaveRoomDraft" class="primary" data-i18n="saveRoomDraft">Lagre endringar</button>
-    </div>
-    <p class="hint" id="roomHint" data-i18n="roomHint"></p>
-    <div class="room-layout-flex">
-      <div class="room-scroll" id="roomScrollA">
-        <div class="room-canvas" id="roomCanvasA"></div>
+    <div id="roomBrowseMode">
+      <div class="toolbar">
+        <span data-i18n="roomHeading">Rom:</span>
+        <strong id="activeRoomNameLabel"></strong>
+        <button id="btnEditRoom" class="primary" data-i18n="editRoomBtn">Redigeringsmodus</button>
+        <span style="width:.9rem"></span>
+        <button id="btnRandom" class="primary" data-i18n="seatingRandom">Tilfeldig plassering</button>
+        <button id="btnClearArrangement" data-i18n="seatingClear">Tøm plassering</button>
+        <button id="btnSaveHistory" data-i18n="seatingSave">Lagre plassering til historikk</button>
+        <span data-i18n="genderWeight">Kjønnsvekting</span>
+        <select id="genderModeSelect"></select>
+        <span class="spacer"></span>
+        <span data-i18n="search">Søk elev:</span>
+        <input type="text" id="poolSearch">
       </div>
-      <div class="side-panel appearance-side-panel" id="appearancePanel">
-        <div class="side-panel-head">
-          <h3 data-i18n="roomAppearanceTitle">Utsjånad</h3>
-          <button class="collapse-btn appearance-close-btn">&times;</button>
+      <div id="noRoomBanner" class="panel welcome-banner" style="display:none">
+        <h2 data-i18n="noRoomTitle">Ingen rom enno</h2>
+        <p data-i18n="noRoomText">Trykk "Rediger rom" ovanfor for å setje opp ditt første klasserom.</p>
+      </div>
+      <div class="seating-layout" id="seatingLayoutArea">
+        <div class="pool-panel side-panel" id="poolPanel">
+          <div class="side-panel-head">
+            <h3 data-i18n="poolPanelTitle">Elevar</h3>
+            <button class="collapse-btn" id="poolCollapseBtn">&harr;</button>
+          </div>
+          <div class="side-panel-body">
+            <p class="hint" data-i18n="poolHelp"></p>
+            <div class="pool-list" id="poolList"></div>
+          </div>
         </div>
-        <div class="side-panel-body">
-          <div class="rap-group">
-            <label class="rap-group-label" data-i18n="settingsRadius">Avrunding</label>
-            <input type="range" class="rap-radius" min="0" max="24" step="1">
+        <div class="room-wrap">
+          <div class="toolbar">
+            <span data-i18n="zoomLabel">Skala</span>
+            <button id="zoomOutSeat">-</button>
+            <span id="zoomLabelSeat">100%</span>
+            <button id="zoomInSeat">+</button>
+            <button id="zoomResetSeat" data-i18n="zoomReset">Tilbakestill</button>
+            <span class="spacer"></span>
+            <button id="btnFullHistory" data-i18n="fullHistory">Full historikk</button>
+            <button id="btnHistoryBrowser" data-i18n="historyBrowserBtn">Bla i tidlegare plasseringar</button>
+            <button id="btnPreviewImage" data-i18n="previewImage">Sjå og last ned</button>
+            <button id="btnSeatingAppearance" class="toggle" data-i18n="roomAppearanceBtn">Utsjånad</button>
           </div>
-          <div class="rap-group">
-            <label class="rap-group-label" data-i18n="settingsBlur">Uskarpheit på pultar</label>
-            <input type="range" class="rap-blur" min="0" max="20" step="1">
+          <div class="room-scroll" id="roomScrollB">
+            <div class="room-canvas" id="roomCanvasB"></div>
           </div>
-          <div class="rap-group">
-            <label class="rap-group-label" data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
-            <input type="range" class="rap-opacity" min="0.2" max="1" step="0.05">
+        </div>
+        <div class="info-panel side-panel panel" id="infoPanelWrap">
+          <div class="side-panel-head">
+            <h3 data-i18n="infoPanelTitle">Historikk</h3>
+            <button class="collapse-btn" id="infoCollapseBtn">&harr;</button>
           </div>
-          <div class="rap-group">
-            <label class="rap-group-label" data-i18n="settingsSeatSize">Pultstorleik</label>
-            <div class="rap-size-controls">
-              <input type="range" class="rap-seat-size" min="100" max="220" step="5">
-              <label class="rap-auto-label"><span data-i18n="seatSizeAuto">Automatisk</span> <input type="checkbox" class="rap-seat-auto"></label>
+          <div class="side-panel-body" id="infoPanel"></div>
+        </div>
+        <div class="side-panel appearance-side-panel" id="appearancePanelSeating">
+          <div class="side-panel-head">
+            <h3 data-i18n="roomAppearanceTitle">Utsjånad</h3>
+            <button class="collapse-btn appearance-close-btn">&times;</button>
+          </div>
+          <div class="side-panel-body">
+            <div class="rap-group">
+              <label class="rap-group-label" data-i18n="settingsRadius">Avrunding</label>
+              <input type="range" class="rap-radius" min="0" max="24" step="1">
+            </div>
+            <div class="rap-group">
+              <label class="rap-group-label" data-i18n="settingsBlur">Uskarpheit på pultar</label>
+              <input type="range" class="rap-blur" min="0" max="20" step="1">
+            </div>
+            <div class="rap-group">
+              <label class="rap-group-label" data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
+              <input type="range" class="rap-opacity" min="0.2" max="1" step="0.05">
+            </div>
+            <div class="rap-group">
+              <label class="rap-group-label" data-i18n="settingsSeatSize">Pultstorleik</label>
+              <div class="rap-size-controls">
+                <input type="range" class="rap-seat-size" min="100" max="220" step="5">
+                <label class="rap-auto-label"><span data-i18n="seatSizeAuto">Automatisk</span> <input type="checkbox" class="rap-seat-auto"></label>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-    </div>
-  </section>
 
-  <!-- ===================== PLASSERING ===================== -->
-  <section id="tab-seating" class="tabview">
-    <div class="toolbar">
-      <span data-i18n="roomHeading">Rom:</span>
-      <select id="roomSelectSeating"></select>
-      <button id="btnRandom" class="primary" data-i18n="seatingRandom">Tilfeldig plassering</button>
-      <button id="btnClearArrangement" data-i18n="seatingClear">Tøm plassering</button>
-      <button id="btnSaveHistory" data-i18n="seatingSave">Lagre plassering til historikk</button>
-      <span data-i18n="genderWeight">Kjønnsvekting</span>
-      <select id="genderModeSelect"></select>
-      <span class="spacer"></span>
-      <span data-i18n="search">Søk elev:</span>
-      <input type="text" id="poolSearch">
-    </div>
-    <div class="seating-layout">
-      <div class="pool-panel side-panel" id="poolPanel">
-        <div class="side-panel-head">
-          <h3 data-i18n="poolPanelTitle">Elevar</h3>
-          <button class="collapse-btn" id="poolCollapseBtn">&harr;</button>
-        </div>
-        <div class="side-panel-body">
-          <p class="hint" data-i18n="poolHelp"></p>
-          <div class="pool-list" id="poolList"></div>
-        </div>
+    <div id="roomEditModeWrap" style="display:none">
+      <div class="edit-mode-banner">
+        <button id="btnBackToBrowse" class="edit-mode-back-btn">
+          <span class="edit-mode-icon">&#9998;</span>
+          <span data-i18n="editModeLabel">Redigeringsmodus</span>
+        </button>
+        <button id="btnEditModeRoomName" class="edit-mode-room-btn"></button>
       </div>
-      <div class="room-wrap">
-        <div class="toolbar">
-          <span data-i18n="zoomLabel">Skala</span>
-          <button id="zoomOutSeat">-</button>
-          <span id="zoomLabelSeat">100%</span>
-          <button id="zoomInSeat">+</button>
-          <button id="zoomResetSeat" data-i18n="zoomReset">Tilbakestill</button>
-          <span class="spacer"></span>
-          <button id="btnFullHistory" data-i18n="fullHistory">Full historikk</button>
-          <button id="btnHistoryBrowser" data-i18n="historyBrowserBtn">Bla i tidlegare plasseringar</button>
-          <button id="btnPreviewImage" data-i18n="previewImage">Sjå og last ned</button>
-          <button id="btnSeatingAppearance" class="toggle" data-i18n="roomAppearanceBtn">Utsjånad</button>
-        </div>
-        <div class="room-scroll" id="roomScrollB">
-          <div class="room-canvas" id="roomCanvasB"></div>
-        </div>
+      <div class="toolbar">
+        <button id="btnAddGroup" class="primary" data-i18n="roomToolbarAdd">+ Bordgruppe</button>
+        <button id="btnQuickGrid" data-i18n="roomToolbarGrid">Lag rutenett automatisk...</button>
+        <button id="btnSaveLayout" data-i18n="saveLayoutBtn">Lagra som mal...</button>
+        <button id="btnAutoFrontBack" data-i18n="autoFrontBack">Auto-merk framme/bak</button>
+        <button id="btnFlipRoom" class="toggle">Snu visning</button>
+        <span class="spacer"></span>
+        <span data-i18n="zoomLabel">Skala</span>
+        <button id="zoomOutRoom">-</button>
+        <span id="zoomLabelRoom">100%</span>
+        <button id="zoomInRoom">+</button>
+        <button id="zoomResetRoom" data-i18n="zoomReset">Tilbakestill</button>
       </div>
-      <div class="info-panel side-panel panel" id="infoPanelWrap">
-        <div class="side-panel-head">
-          <h3 data-i18n="infoPanelTitle">Historikk</h3>
-          <button class="collapse-btn" id="infoCollapseBtn">&harr;</button>
-        </div>
-        <div class="side-panel-body" id="infoPanel"></div>
+      <div class="toolbar">
+        <button id="btnSeatMenu" data-i18n="seatMenuBtn">&#9776; Meny for valde</button>
+        <button id="btnBulkZones" data-i18n="bulkZonesBtn">Rediger soner (valde)</button>
+        <button id="btnMergeGroups" data-i18n="mergeGroups">Slå saman valde bord</button>
+        <button id="btnSplitGroups" data-i18n="splitGroups">Skil ut valde plassar</button>
+        <button id="btnClearSelection" data-i18n="clearSelection">Merk ingen</button>
+        <span class="hint" id="roomSeatCount"></span>
+        <span class="spacer"></span>
+        <button id="btnRoomAppearance" class="toggle" data-i18n="roomAppearanceBtn">Utsjånad</button>
       </div>
-      <div class="side-panel appearance-side-panel" id="appearancePanelSeating">
-        <div class="side-panel-head">
-          <h3 data-i18n="roomAppearanceTitle">Utsjånad</h3>
-          <button class="collapse-btn appearance-close-btn">&times;</button>
+      <div class="draft-bar" id="roomDraftBar">
+        <span class="draft-bar-icon">&#9888;</span>
+        <span data-i18n="roomDraftPending">Ulagra endringar i romoppsettet</span>
+        <span class="spacer"></span>
+        <button id="btnDiscardRoomDraft" class="danger" data-i18n="discardRoomDraft">Forkast endringar</button>
+        <button id="btnSaveRoomDraft" class="primary" data-i18n="saveRoomDraft">Lagre endringar</button>
+      </div>
+      <p class="hint" id="roomHint" data-i18n="roomHint"></p>
+      <div class="room-layout-flex">
+        <div class="room-scroll" id="roomScrollA">
+          <div class="room-canvas" id="roomCanvasA"></div>
         </div>
-        <div class="side-panel-body">
-          <div class="rap-group">
-            <label class="rap-group-label" data-i18n="settingsRadius">Avrunding</label>
-            <input type="range" class="rap-radius" min="0" max="24" step="1">
+        <div class="side-panel appearance-side-panel" id="appearancePanel">
+          <div class="side-panel-head">
+            <h3 data-i18n="roomAppearanceTitle">Utsjånad</h3>
+            <button class="collapse-btn appearance-close-btn">&times;</button>
           </div>
-          <div class="rap-group">
-            <label class="rap-group-label" data-i18n="settingsBlur">Uskarpheit på pultar</label>
-            <input type="range" class="rap-blur" min="0" max="20" step="1">
-          </div>
-          <div class="rap-group">
-            <label class="rap-group-label" data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
-            <input type="range" class="rap-opacity" min="0.2" max="1" step="0.05">
-          </div>
-          <div class="rap-group">
-            <label class="rap-group-label" data-i18n="settingsSeatSize">Pultstorleik</label>
-            <div class="rap-size-controls">
-              <input type="range" class="rap-seat-size" min="100" max="220" step="5">
-              <label class="rap-auto-label"><span data-i18n="seatSizeAuto">Automatisk</span> <input type="checkbox" class="rap-seat-auto"></label>
+          <div class="side-panel-body">
+            <div class="rap-group">
+              <label class="rap-group-label" data-i18n="settingsRadius">Avrunding</label>
+              <input type="range" class="rap-radius" min="0" max="24" step="1">
+            </div>
+            <div class="rap-group">
+              <label class="rap-group-label" data-i18n="settingsBlur">Uskarpheit på pultar</label>
+              <input type="range" class="rap-blur" min="0" max="20" step="1">
+            </div>
+            <div class="rap-group">
+              <label class="rap-group-label" data-i18n="settingsOpacity">Gjennomsikt på pultar</label>
+              <input type="range" class="rap-opacity" min="0.2" max="1" step="0.05">
+            </div>
+            <div class="rap-group">
+              <label class="rap-group-label" data-i18n="settingsSeatSize">Pultstorleik</label>
+              <div class="rap-size-controls">
+                <input type="range" class="rap-seat-size" min="100" max="220" step="5">
+                <label class="rap-auto-label"><span data-i18n="seatSizeAuto">Automatisk</span> <input type="checkbox" class="rap-seat-auto"></label>
+              </div>
             </div>
           </div>
         </div>
