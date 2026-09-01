@@ -14,7 +14,7 @@ const BLACKLIST_WEIGHT = 100000, REPEAT_WEIGHT = 12, ZONE_WEIGHT = 3, GENDER_WEI
 
 // -- Tomme objekt --
 function newRoomData() {
-  return { version: ROOM_VERSION, groups: {}, seat_zones: {}, view_flipped: true };
+  return { version: ROOM_VERSION, groups: {}, seat_zones: {}, view_flipped: true, view_mirrored: false };
 }
 function newClassData() {
   return {

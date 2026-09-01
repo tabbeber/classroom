@@ -53,6 +53,7 @@
         <div id="classList" class="class-list"></div>
         <div class="toolbar" style="margin-top:.6rem">
           <button id="btnNewClass" class="primary" data-i18n="newClass">Ny klasse</button>
+          <span class="spacer"></span>
           <button id="btnDuplicateClass" data-i18n="duplicateClass">Kopier</button>
           <button id="btnSetDefault" data-i18n="setDefault">Set som standard</button>
         </div>
@@ -102,7 +103,7 @@
     <div id="roomBrowseMode">
       <div class="toolbar">
         <span data-i18n="roomHeading">Rom:</span>
-        <strong id="activeRoomNameLabel"></strong>
+        <select id="browseRoomSelect" class="browse-room-select"></select>
         <button id="btnEditRoom" class="primary" data-i18n="editRoomBtn">Redigeringsmodus</button>
         <span style="width:.9rem"></span>
         <button id="btnRandom" class="primary" data-i18n="seatingRandom">Tilfeldig plassering</button>
@@ -189,14 +190,15 @@
           <span class="edit-mode-icon">&#9998;</span>
           <span data-i18n="editModeLabel">Redigeringsmodus</span>
         </button>
-        <button id="btnEditModeRoomName" class="edit-mode-room-btn"></button>
+        <select id="editModeRoomSelect" class="edit-mode-room-select"></select>
       </div>
       <div class="toolbar">
-        <button id="btnAddGroup" class="primary" data-i18n="roomToolbarAdd">+ Bordgruppe</button>
-        <button id="btnQuickGrid" data-i18n="roomToolbarGrid">Lag rutenett automatisk...</button>
-        <button id="btnSaveLayout" data-i18n="saveLayoutBtn">Lagra som mal...</button>
+        <button id="btnQuickGrid" class="primary" data-i18n="roomToolbarGrid">Set opp klasserom</button>
+        <button id="btnAddGroup" data-i18n="roomToolbarAdd">+ Bordgruppe</button>
+        <button id="btnSaveLayout" data-i18n="saveLayoutBtn">Lagra som mal</button>
         <button id="btnAutoFrontBack" data-i18n="autoFrontBack">Auto-merk framme/bak</button>
         <button id="btnFlipRoom" class="toggle">Snu visning</button>
+        <button id="btnMirrorRoom" class="toggle" data-i18n="mirrorRoomBtn">Spegling</button>
         <span class="spacer"></span>
         <span data-i18n="zoomLabel">Skala</span>
         <button id="zoomOutRoom">-</button>
