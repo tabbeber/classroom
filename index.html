@@ -106,11 +106,12 @@
         <select id="browseRoomSelect" class="browse-room-select"></select>
         <button id="btnEditRoom" class="primary" data-i18n="editRoomBtn">Redigeringsmodus</button>
         <span style="width:.9rem"></span>
-        <button id="btnRandom" class="primary" data-i18n="seatingRandom">Tilfeldig plassering</button>
+        <div class="split-btn">
+          <button id="btnRandom" class="primary" data-i18n="seatingRandom">Tilfeldig plassering</button>
+          <button id="btnRandomMenu" class="primary split-btn-arrow" title="Fleire fordelingsval" data-i18n-title="moreDistributeOptions">&#9662;</button>
+        </div>
         <button id="btnClearArrangement" data-i18n="seatingClear">Tøm plassering</button>
         <button id="btnSaveHistory" data-i18n="seatingSave">Lagre plassering til historikk</button>
-        <span data-i18n="genderWeight">Kjønnsvekting</span>
-        <select id="genderModeSelect"></select>
         <span class="spacer"></span>
         <span data-i18n="search">Søk elev:</span>
         <input type="text" id="poolSearch">

@@ -83,8 +83,8 @@ nn: {
   splitNeedSelection: "Vel plassar (Ctrl+klikk) for å skilje dei ut i eiga bordgruppe.",
 
   seatingRandom: "Tilfeldig plassering", seatingClear: "Tøm plassering", seatingSave: "Lagre plassering til historikk",
-  genderWeight: "Kjønnsvekting", genderNone2: "Ingen kjønnsvekting", genderUnlike: "Vekt mot ULIKT kjønn",
-  genderAlike: "Vekt mot LIKT kjønn", search: "Søk elev:", poolHeading: "Elevar",
+  genderWeight: "Kjønnsvekting", genderNone2: "Ingen kjønnsvekting", genderUnlike: "Vekt mot ulikt kjønn",
+  genderAlike: "Vekt mot likt kjønn", search: "Søk elev:", poolHeading: "Elevar",
   poolHelp: "Dra ein elev til ei rute, eller klikk elev og deretter ei rute.",
   allSeated: "Alle elevar er plassert", noMatch: "Ingen treff.",
   historyHeading: "Historikk", historyEmptyHint: "Klikk ein elev eller ei rute for å sjå historikk.",
@@ -209,8 +209,8 @@ nb: {
   splitNeedSelection: "Velg plasser (Ctrl+klikk) for å skille dem ut i egen bordgruppe.",
 
   seatingRandom: "Tilfeldig plassering", seatingClear: "Tøm plassering", seatingSave: "Lagre plassering til historikk",
-  genderWeight: "Kjønnsvekting", genderNone2: "Ingen kjønnsvekting", genderUnlike: "Vekt mot ULIKT kjønn",
-  genderAlike: "Vekt mot LIKT kjønn", search: "Søk elev:", poolHeading: "Elever",
+  genderWeight: "Kjønnsvekting", genderNone2: "Ingen kjønnsvekting", genderUnlike: "Vekt mot ulikt kjønn",
+  genderAlike: "Vekt mot likt kjønn", search: "Søk elev:", poolHeading: "Elever",
   poolHelp: "Dra en elev til en rute, eller klikk elev og deretter en rute.",
   allSeated: "Alle elever er plassert", noMatch: "Ingen treff.",
   historyHeading: "Historikk", historyEmptyHint: "Klikk en elev eller en rute for å se historikk.",
@@ -335,8 +335,8 @@ en: {
   splitNeedSelection: "Select seats (Ctrl+click) to split them into their own table group.",
 
   seatingRandom: "Random seating", seatingClear: "Clear seating", seatingSave: "Save seating to history",
-  genderWeight: "Gender balance", genderNone2: "No gender weighting", genderUnlike: "Favor MIXED gender",
-  genderAlike: "Favor SAME gender", search: "Search student:", poolHeading: "Students",
+  genderWeight: "Gender balance", genderNone2: "No gender weighting", genderUnlike: "Weight toward different gender",
+  genderAlike: "Weight toward same gender", search: "Search student:", poolHeading: "Students",
   poolHelp: "Drag a student to a seat, or click a student then a seat.",
   allSeated: "All students are seated", noMatch: "No matches.",
   historyHeading: "History", historyEmptyHint: "Click a student or seat to see history.",

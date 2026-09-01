@@ -460,11 +460,12 @@ function buildSeatMenuItems(sid) {
   }
   return items;
 }
-function showMenuAt(x, y, items) {
+function showMenuAt(x, y, items, width) {
   closeContextMenu();
   const menu = document.createElement('div');
   menu.className = 'panel';
-  Object.assign(menu.style, { position: 'fixed', left: x + 'px', top: y + 'px', zIndex: 200, minWidth: '230px', padding: '.3rem' });
+  Object.assign(menu.style, { position: 'fixed', left: x + 'px', top: y + 'px', zIndex: 200, padding: '.3rem' });
+  if (width) menu.style.width = width + 'px'; else menu.style.minWidth = '230px';
   for (const [label, fn] of items) {
     const b = document.createElement('button'); b.textContent = label;
     Object.assign(b.style, { display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', borderRadius: '6px' });
@@ -1599,7 +1600,7 @@ function switchClass(id) {
   App.selectedSeat = null; App.selectedStudent = null; App.multiSelected = new Set(); App.armedStudent = null;
   App.roomDirty = false; updateRoomDraftBar();
   App.arrangementDirty = false; updateSaveHistoryButtonState();
-  fillGenderModeSelect(); syncFlipButton(); syncMirrorButton();
+  syncFlipButton(); syncMirrorButton();
   renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab();
   return true;
 }
@@ -1683,13 +1684,6 @@ function clampZoom(z) { return Math.max(0.5, Math.min(2, Math.round(z * 100) / 1
 function updateZoomLabel(which) {
   document.getElementById('zoomLabel' + which).textContent = Math.round((which === 'Room' ? App.zoomRoom : App.zoomSeat) * 100) + '%';
 }
-function fillGenderModeSelect() {
-  const sel = document.getElementById('genderModeSelect'); sel.innerHTML = '';
-  sel.appendChild(new Option(t('genderNone2'), 'ingen'));
-  sel.appendChild(new Option(t('genderUnlike'), 'ulikt'));
-  sel.appendChild(new Option(t('genderAlike'), 'likt'));
-  sel.value = App.data.gender_weight_mode;
-}
 
 // -- Tema (fullstendige fargesett - lys/mørk/Catppuccin) --
 const THEMES = {
@@ -1771,7 +1765,7 @@ function applyStaticTranslations() {
   document.querySelectorAll('[data-lang]').forEach(btn => btn.classList.toggle('active', btn.dataset.lang === currentLang));
 }
 function refreshDynamicTexts() {
-  fillGenderModeSelect(); renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderSettingsTab();
+  renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderSettingsTab();
   syncFlipButton(); syncMirrorButton(); applyPanelCollapseState();
   document.getElementById('btnBackToBrowse').title = t('backToBrowseHint');
 }
@@ -1892,13 +1886,13 @@ function wireEvents() {
   document.getElementById('roomScrollB').addEventListener('click', clearSelectionOnEmptyClick);
 
   // -- Plasserings-fane --
-  document.getElementById('btnRandom').onclick = () => {
+  const runRandomPlacement = genderMode => {
     const room = App.room, cls = App.data;
     if (!cls.students.length) { alert(t('noStudents')); return; }
     if (!Object.keys(room.groups).length) { alert(t('noGroups')); return; }
     const totalSeats = allSeatIds(room).length;
     if (cls.students.length > totalSeats && !confirm(t('tooFewSeats', { students: cls.students.length, seats: totalSeats }))) return;
-    cls.arrangement = generateArrangement(room, cls, { genders: cls.genders, genderMode: cls.gender_weight_mode });
+    cls.arrangement = generateArrangement(room, cls, { genders: cls.genders, genderMode });
     markArrangementDirty();
     saveCurrentClass(); App.selectedSeat = null;
     renderAllRoomViews(); renderPool(); renderInfoPanel();
@@ -1908,6 +1902,14 @@ function wireEvents() {
       for (const [sid, others] of Object.entries(viol)) { const name = cls.arrangement[sid]; for (const o of others) pairs.add([name, o].sort().join(' & ')); }
       alert(t('blacklistUnavoidable') + '\n' + [...pairs].join('\n'));
     }
+  };
+  document.getElementById('btnRandom').onclick = () => runRandomPlacement('none');
+  document.getElementById('btnRandomMenu').onclick = () => {
+    const r = document.getElementById('btnRandomMenu').closest('.split-btn').getBoundingClientRect();
+    showMenuAt(r.left, r.bottom + 4, [
+      [t('genderAlike'), () => runRandomPlacement('likt')],
+      [t('genderUnlike'), () => runRandomPlacement('ulikt')],
+    ], r.width);
   };
   document.getElementById('btnClearArrangement').onclick = () => {
     if (!Object.keys(App.data.arrangement).length || !confirm(t('confirmClearArrangement'))) return;
@@ -1919,7 +1921,6 @@ function wireEvents() {
     App.arrangementDirty = false; updateSaveHistoryButtonState();
     saveCurrentClass(); renderInfoPanel();
   };
-  document.getElementById('genderModeSelect').onchange = e => { App.data.gender_weight_mode = e.target.value; saveCurrentClass(); };
   document.getElementById('poolSearch').oninput = renderPool;
   document.getElementById('btnFullHistory').onclick = openFullHistoryModal;
   document.getElementById('btnHistoryBrowser').onclick = openHistoryBrowserModal;
@@ -1941,11 +1942,11 @@ function wireEvents() {
   };
   document.getElementById('btnGenerateGroupsMenu').onclick = () => {
     if (!App.data.students.length) { alert(t('noStudents')); return; }
-    const btn = document.getElementById('btnGenerateGroupsMenu'), r = btn.getBoundingClientRect();
+    const r = document.getElementById('btnGenerateGroupsMenu').closest('.split-btn').getBoundingClientRect();
     showMenuAt(r.left, r.bottom + 4, [
-      [t('genderEven'), () => { App.data.group_assignment = generateTeamGroups(App.data, groupCountFor(App.data), 'even'); saveCurrentClass(); renderGroupsTab(); }],
-      [t('genderUneven'), () => { App.data.group_assignment = generateTeamGroups(App.data, groupCountFor(App.data), 'uneven'); saveCurrentClass(); renderGroupsTab(); }],
-    ]);
+      [t('genderAlike'), () => { App.data.group_assignment = generateTeamGroups(App.data, groupCountFor(App.data), 'uneven'); saveCurrentClass(); renderGroupsTab(); }],
+      [t('genderUnlike'), () => { App.data.group_assignment = generateTeamGroups(App.data, groupCountFor(App.data), 'even'); saveCurrentClass(); renderGroupsTab(); }],
+    ], r.width);
   };
   document.getElementById('btnCopyGroups').onclick = copyGroupsAsText;
   document.getElementById('btnClearGroups').onclick = () => {
@@ -2124,7 +2125,7 @@ function init() {
     App.data = newClassData();
     App.roomId = null; App.room = newRoomData();
     App.selectedSeat = null; App.selectedStudent = null; App.multiSelected = new Set(); App.armedStudent = null;
-    fillGenderModeSelect(); syncFlipButton(); syncMirrorButton();
+    syncFlipButton(); syncMirrorButton();
     renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab();
   } else {
     if (!defId) defId = Store.createClass(t('newClass'), null);
