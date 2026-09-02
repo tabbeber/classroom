@@ -380,16 +380,29 @@ function zoneHistoryFor(r, cls, name) {
 // Berre plassar som framleis finst i romet er med (robust mot at romet vert
 // endra sidan - då fell berre den enkeltøkta bort, resten av historikken
 // held fram å stemme). Returnerer { sid: { count, recency (0=eldst,1=nyast) } }.
+// Fargelegg pultane etter kor NYLEG og kor OFTE ein elev har sete der.
+// Den siste (nyaste) lagra økta representerer i praksis "no" - rett etter
+// at nokon trykte "Tilfeldig plassering" og lagra. Denne skal ikkje åleine
+// gjere den noverande plassen raud (det er sjølvsagt, ikkje nyttig info) -
+// MED MINDRE eleven sat på nøyaktig same plass i økta rett før også,
+// som er ei reell gjentaking verdt å framheve.
 function seatHeatmapForStudent(r, cls, name) {
-  const sessions = cls.sessions, n = sessions.length, bySeat = {};
-  sessions.forEach((sess, idx) => {
-    const sid = Object.keys(sess.arrangement).find(s => sess.arrangement[s] === name);
-    if (!sid || !groupOf(r, sid)) return;
+  const sessions = cls.sessions, n = sessions.length;
+  if (!n) return {};
+  const seatBySession = sessions.map(sess => Object.keys(sess.arrangement).find(s => sess.arrangement[s] === name) || null);
+  const lastSid = seatBySession[n - 1];
+  const prevSid = n >= 2 ? seatBySession[n - 2] : null;
+  const repeat = lastSid !== null && lastSid === prevSid;
+  const usableCount = repeat ? n : n - 1;
+  const bySeat = {};
+  for (let idx = 0; idx < usableCount; idx++) {
+    const sid = seatBySession[idx];
+    if (!sid || !groupOf(r, sid)) continue;
     const rec = bySeat[sid] || (bySeat[sid] = { count: 0, lastIndex: -1 });
     rec.count++; rec.lastIndex = Math.max(rec.lastIndex, idx);
-  });
+  }
   const out = {};
-  for (const [sid, rec] of Object.entries(bySeat)) out[sid] = { count: rec.count, recency: n > 1 ? rec.lastIndex / (n - 1) : 1 };
+  for (const [sid, rec] of Object.entries(bySeat)) out[sid] = { count: rec.count, recency: usableCount > 1 ? rec.lastIndex / (usableCount - 1) : 1 };
   return out;
 }
 

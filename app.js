@@ -15,9 +15,10 @@ const App = {
   multiSelected: new Set(), armedStudent: null,
   drag: null, ctxMenu: null,
   roomDirty: false,
-  heatmapEnabled: false, heatmapData: null,
+  heatmapEnabled: false, heatmapData: null, heatmapShowArrows: true,
   arrangementDirty: false,
   roomEditMode: false,
+  showRepeatWarnings: false,
 };
 
 // -- Tekstmåling og layout-utrekning --
@@ -96,11 +97,19 @@ function buildSeatEl(sid, mode, w, h, repeatWarn, blWarn, zoom) {
   }
   el.dataset.sid = sid;
 
+  if (mode === 'seating' && student) {
+    const searchEl = document.getElementById('poolSearch');
+    const filt = searchEl ? searchEl.value.trim().toLowerCase() : '';
+    if (filt && student.toLowerCase().includes(filt)) el.classList.add('search-match');
+  }
+
   if (mode === 'seating' && App.heatmapData && App.heatmapData[sid]) {
     const { count, recency } = App.heatmapData[sid];
     const hue = 120 * (1 - recency); // 120=grøn (lenge sidan), 0=raud (nyleg)
     const opacity = Math.min(0.85, 0.28 + count * 0.14);
     el.style.boxShadow = `inset 0 0 0 999px hsla(${hue}, 75%, 50%, ${opacity})`;
+    const countBadge = document.createElement('span'); countBadge.className = 'heatmap-count-badge'; countBadge.textContent = '\u00d7' + count;
+    el.appendChild(countBadge);
   }
 
   const top = document.createElement('div'); top.className = 'top-row';
@@ -133,6 +142,90 @@ function currentHeatmapStudentName() {
   if (App.selectedSeat) return App.data.arrangement[App.selectedSeat] || null;
   return null;
 }
+// Teiknar kurva strekar (med retningspil midt på) mellom dei ulike pultane
+// ein elev har sete på over tid - eit supplement til heatmap-fargelegginga.
+// Går frå midt-til-midt på pultane, men om same pult opptrer fleire gonger
+// (ikkje samanhengande) i historikken, vert kvar opptreden flytta litt frå
+// sentrum (i ein liten sirkel) slik at strekane ikkje legg seg oppå kvarandre.
+function renderStudentPathOverlay(container, cls, name, positions, seatW, seatH, zoom) {
+  const old = container.querySelector('.student-path-overlay');
+  if (old) old.remove();
+  if (!name) return;
+
+  const seq = [];
+  for (const sess of cls.sessions) {
+    const sid = Object.keys(sess.arrangement).find(s => sess.arrangement[s] === name);
+    if (sid && positions[sid]) seq.push(sid);
+  }
+  const curSid = studentSeat(cls, name);
+  if (curSid && positions[curSid]) seq.push(curSid);
+
+  const path = [];
+  for (const sid of seq) if (!path.length || path[path.length - 1] !== sid) path.push(sid);
+  if (path.length < 2) return;
+
+  const seatOccurrences = {};
+  for (const sid of path) seatOccurrences[sid] = (seatOccurrences[sid] || 0) + 1;
+  // Rekn ut det jitra ankerpunktet éin gong per POSISJON i stien (ikkje éin
+  // gong per segment-referanse) - elles ville same faktiske vitjing kunne få
+  // to ulike punkt avhengig av om han vart brukt som start eller slutt på eit segment.
+  const seatOccurrenceIndex = {};
+  const anchors = path.map(sid => {
+    const total = seatOccurrences[sid];
+    const idx = (seatOccurrenceIndex[sid] = (seatOccurrenceIndex[sid] || 0) + 1) - 1;
+    const [px, py] = positions[sid];
+    const cx = (px + seatW / 2) * zoom, cy = (py + seatH / 2) * zoom;
+    if (total <= 1) return [cx, cy];
+    const radius = Math.min(seatW, seatH) * zoom * 0.16;
+    const angle = (idx / total) * Math.PI * 2 - Math.PI / 2;
+    return [cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius];
+  });
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'student-path-overlay');
+  Object.assign(svg.style, { position: 'absolute', left: '0', top: '0', width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 4 });
+
+  for (let i = 0; i < path.length - 1; i++) {
+    const [x1, y1] = anchors[i];
+    const [x2, y2] = anchors[i + 1];
+    const dx = x2 - x1, dy = y2 - y1;
+    const dist = Math.hypot(dx, dy) || 1;
+    // Bøy kurva perpendikulært på linja, retning vekslar med steg-indeksen -
+    // ein enkel heuristikk som spreier strekar frå ulike steg frå kvarandre.
+    const bendDir = (i % 2 === 0) ? 1 : -1;
+    const bend = Math.min(dist * 0.18, 26) * bendDir;
+    const mx = (x1 + x2) / 2 - (dy / dist) * bend;
+    const my = (y1 + y2) / 2 + (dx / dist) * bend;
+
+    const pathEl = document.createElementNS(NS, 'path');
+    pathEl.setAttribute('d', `M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`);
+    Object.assign(pathEl.style, {});
+    pathEl.setAttribute('fill', 'none');
+    pathEl.setAttribute('stroke', '#dc2626');
+    pathEl.setAttribute('stroke-width', '2');
+    pathEl.setAttribute('stroke-linecap', 'round');
+    pathEl.setAttribute('opacity', '0.7');
+    svg.appendChild(pathEl);
+
+    // Pil midt på kurva (t=0.5 på den kvadratiske bezier-kurva), peiker i retninga ho går.
+    const t = 0.5;
+    const bx = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * mx + t * t * x2;
+    const by = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * my + t * t * y2;
+    const tx = 2 * (1 - t) * (mx - x1) + 2 * t * (x2 - mx);
+    const ty = 2 * (1 - t) * (my - y1) + 2 * t * (y2 - my);
+    const angleDeg = Math.atan2(ty, tx) * 180 / Math.PI;
+
+    const arrow = document.createElementNS(NS, 'polygon');
+    const s = 7;
+    arrow.setAttribute('points', `${s},0 ${-s * 0.6},${s * 0.6} ${-s * 0.6},${-s * 0.6}`);
+    arrow.setAttribute('fill', '#dc2626');
+    arrow.setAttribute('opacity', '0.9');
+    arrow.setAttribute('transform', `translate(${bx},${by}) rotate(${angleDeg})`);
+    svg.appendChild(arrow);
+  }
+  container.appendChild(svg);
+}
 function renderRoom(containerId, mode, zoom) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
@@ -157,7 +250,7 @@ function renderRoom(containerId, mode, zoom) {
     container.appendChild(hint);
     return;
   }
-  const repeatWarn = (mode === 'seating' && App.arrangementDirty) ? repeatNeighbourSeats(room, cls, cls.arrangement) : {};
+  const repeatWarn = (mode === 'seating' && App.showRepeatWarnings) ? repeatNeighbourSeats(room, cls, cls.arrangement) : {};
   const blWarn = mode === 'seating' ? blacklistViolationSeats(room, cls, cls.arrangement) : {};
   _groupFrameCache[containerId] = {};
   for (const [gid, g] of Object.entries(room.groups)) {
@@ -179,6 +272,7 @@ function renderRoom(containerId, mode, zoom) {
       _seatElCache[containerId][sid] = el;
     }
   }
+  if (mode === 'seating' && heatName && App.heatmapShowArrows) renderStudentPathOverlay(container, cls, heatName, positions, seatW, seatH, zoom);
 }
 function repositionRoom(containerId, zoom) {
   const room = App.room, cls = App.data, { w: seatW, h: seatH } = computeSeatSize(cls.students);
@@ -479,6 +573,17 @@ function showMenuAt(x, y, items, width) {
   if (r.right > window.innerWidth) menu.style.left = Math.max(4, window.innerWidth - r.width - 4) + 'px';
   if (r.bottom > window.innerHeight) menu.style.top = Math.max(4, window.innerHeight - r.height - 4) + 'px';
   setTimeout(() => document.addEventListener('mousedown', onDocMouseDownCloseMenu), 0);
+}
+// Kopl ein pil-knapp (split-btn) til ein meny-opnar, med skikkeleg av/på-åtferd.
+// Utan dette ville eit klikk på pila medan menyen alt er open lukke han
+// (via mousedown-utanfor-lukking) og so opne han att med det same (via click),
+// som verkar som eit blunk. Vi fangar "var menyen open?" på mousedown - FØR
+// dokument-lukkinga rekk å køyre - og hoppar over å opne på nytt viss so var.
+function wireSplitBtnToggle(btnId, openMenuFn) {
+  const btn = document.getElementById(btnId);
+  let wasOpen = false;
+  btn.addEventListener('mousedown', () => { wasOpen = !!App.ctxMenu; });
+  btn.onclick = () => { if (!wasOpen) openMenuFn(); };
 }
 function openSeatContextMenu(e, sid) {
   App.selectedSeat = sid;
@@ -919,6 +1024,10 @@ async function openImagePreviewModal() {
   let flipped = App.room.view_flipped, whiteBg = !!App.settings.exportWhiteBg;
   const modal = openModal(`
     <h2>${t('previewTitle')}</h2>
+    <div class="row" style="margin-bottom:.6rem">
+      <label for="pvTitle" style="white-space:nowrap">${t('previewTitleLabel')}</label>
+      <input type="text" id="pvTitle" style="flex:1; min-width:200px" value="${escapeHtml(exportTitleLine())}">
+    </div>
     <div class="row" style="margin-bottom:.6rem; flex-wrap:wrap">
       <button id="pvFlip">${t('previewFlip')}</button>
       <label class="row"><input type="checkbox" id="pvWhiteBg" ${whiteBg ? 'checked' : ''}> ${t('exportWhiteBgLbl')}</label>
@@ -962,8 +1071,9 @@ async function openImagePreviewModal() {
     canvas.style.width = Math.round(canvas.width * scale) + 'px';
     canvas.style.height = Math.round(canvas.height * scale) + 'px';
   };
-  const redraw = async () => { await drawSeatingChart(canvas, flipped, null, null, whiteBg); fitCanvasToView(); };
+  const redraw = async () => { await drawSeatingChart(canvas, flipped, null, modal.querySelector('#pvTitle').value, whiteBg); fitCanvasToView(); };
   await redraw();
+  modal.querySelector('#pvTitle').oninput = redraw;
   modal.querySelector('#pvFlip').onclick = async () => { flipped = !flipped; await redraw(); };
   modal.querySelector('#pvWhiteBg').onchange = async e => {
     whiteBg = e.target.checked; App.settings.exportWhiteBg = whiteBg; Store.saveSettings(App.settings); await redraw();
@@ -987,6 +1097,7 @@ async function openHistoryBrowserModal() {
       <button id="hbNext">${t('historyBrowserNewer')} \u2192</button>
       <span class="spacer"></span>
       <button id="hbFlip">${t('previewFlip')}</button>
+      <button id="hbDelete" class="danger">${t('historyBrowserDelete')}</button>
       <button id="hbRestore" class="danger">${t('historyBrowserRestore')}</button>
       <button id="hbClose">${t('close')}</button>
     </div>
@@ -1006,6 +1117,15 @@ async function openHistoryBrowserModal() {
   prevBtn.onclick = async () => { if (idx > 0) { idx--; await redraw(); } };
   nextBtn.onclick = async () => { if (idx < sessions.length - 1) { idx++; await redraw(); } };
   modal.querySelector('#hbFlip').onclick = async () => { flipped = !flipped; await redraw(); };
+  modal.querySelector('#hbDelete').onclick = async () => {
+    if (!confirm(t('historyBrowserDeleteConfirm'))) return;
+    sessions.splice(idx, 1);
+    saveCurrentClass();
+    renderInfoPanel();
+    if (!sessions.length) { closeModal(); return; }
+    idx = Math.min(idx, sessions.length - 1);
+    await redraw();
+  };
   modal.querySelector('#hbRestore').onclick = () => {
     if (!confirm(t('historyBrowserRestoreConfirm'))) return;
     App.data.arrangement = { ...sessions[idx].arrangement };
@@ -1217,6 +1337,7 @@ function renderInfoPanel() {
   const panel = document.getElementById('infoPanel');
   panel.innerHTML = `<div class="heatmap-toggle-box">
     <label class="row"><input type="checkbox" id="heatmapToggle" ${App.heatmapEnabled ? 'checked' : ''}> ${t('showHeatmap')}</label>
+    <label class="row" style="margin-left:1.5rem"><input type="checkbox" id="heatmapArrowsToggle" ${App.heatmapShowArrows ? 'checked' : ''} ${App.heatmapEnabled ? '' : 'disabled'}> ${t('showHeatmapArrows')}</label>
     <p class="hint">${t('heatmapHint')}</p>
   </div>`;
 
@@ -1233,7 +1354,12 @@ function renderInfoPanel() {
   } else {
     panel.innerHTML += `<p class="hint">${t('historyEmptyHint')}</p>`;
   }
-  panel.querySelector('#heatmapToggle').onchange = e => { App.heatmapEnabled = e.target.checked; renderAllRoomViews(); };
+  panel.querySelector('#heatmapToggle').onchange = e => {
+    App.heatmapEnabled = e.target.checked;
+    panel.querySelector('#heatmapArrowsToggle').disabled = !App.heatmapEnabled;
+    renderAllRoomViews();
+  };
+  panel.querySelector('#heatmapArrowsToggle').onchange = e => { App.heatmapShowArrows = e.target.checked; renderAllRoomViews(); };
 }
 
 // -- Klasse-fane: klassar, elevar+kjønn (samla), svarteliste --
@@ -1599,7 +1725,7 @@ function switchClass(id) {
   loadRoomForCurrentClass();
   App.selectedSeat = null; App.selectedStudent = null; App.multiSelected = new Set(); App.armedStudent = null;
   App.roomDirty = false; updateRoomDraftBar();
-  App.arrangementDirty = false; updateSaveHistoryButtonState();
+  App.arrangementDirty = false; App.showRepeatWarnings = false; updateSaveHistoryButtonState();
   syncFlipButton(); syncMirrorButton();
   renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab();
   return true;
@@ -1615,7 +1741,7 @@ function switchRoom(id) {
   saveCurrentClass();
   App.selectedSeat = null; App.multiSelected = new Set();
   App.roomDirty = false; updateRoomDraftBar();
-  App.arrangementDirty = false; updateSaveHistoryButtonState();
+  App.arrangementDirty = false; App.showRepeatWarnings = false; updateSaveHistoryButtonState();
   syncFlipButton(); syncMirrorButton(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel();
   return true;
 }
@@ -1894,6 +2020,7 @@ function wireEvents() {
     if (cls.students.length > totalSeats && !confirm(t('tooFewSeats', { students: cls.students.length, seats: totalSeats }))) return;
     cls.arrangement = generateArrangement(room, cls, { genders: cls.genders, genderMode });
     markArrangementDirty();
+    App.showRepeatWarnings = true;
     saveCurrentClass(); App.selectedSeat = null;
     renderAllRoomViews(); renderPool(); renderInfoPanel();
     const viol = blacklistViolationSeats(room, cls, cls.arrangement);
@@ -1904,13 +2031,13 @@ function wireEvents() {
     }
   };
   document.getElementById('btnRandom').onclick = () => runRandomPlacement('none');
-  document.getElementById('btnRandomMenu').onclick = () => {
+  wireSplitBtnToggle('btnRandomMenu', () => {
     const r = document.getElementById('btnRandomMenu').closest('.split-btn').getBoundingClientRect();
     showMenuAt(r.left, r.bottom + 4, [
       [t('genderAlike'), () => runRandomPlacement('likt')],
       [t('genderUnlike'), () => runRandomPlacement('ulikt')],
     ], r.width);
-  };
+  });
   document.getElementById('btnClearArrangement').onclick = () => {
     if (!Object.keys(App.data.arrangement).length || !confirm(t('confirmClearArrangement'))) return;
     App.data.arrangement = {}; markArrangementDirty(); saveCurrentClass(); renderAllRoomViews(); renderPool(); renderInfoPanel();
@@ -1918,10 +2045,10 @@ function wireEvents() {
   document.getElementById('btnSaveHistory').onclick = () => {
     if (!Object.keys(App.data.arrangement).length) return;
     recordSession(App.data, prompt(t('sessionLabelPrompt'), '') || '');
-    App.arrangementDirty = false; updateSaveHistoryButtonState();
+    App.arrangementDirty = false; App.showRepeatWarnings = false; updateSaveHistoryButtonState();
     saveCurrentClass(); renderInfoPanel();
   };
-  document.getElementById('poolSearch').oninput = renderPool;
+  document.getElementById('poolSearch').oninput = () => { renderPool(); renderRoom('roomCanvasB', 'seating', App.zoomSeat); };
   document.getElementById('btnFullHistory').onclick = openFullHistoryModal;
   document.getElementById('btnHistoryBrowser').onclick = openHistoryBrowserModal;
   document.getElementById('btnPreviewImage').onclick = openImagePreviewModal;
@@ -1940,14 +2067,14 @@ function wireEvents() {
     App.data.group_assignment = generateTeamGroups(App.data, groupCountFor(App.data), 'none');
     saveCurrentClass(); renderGroupsTab();
   };
-  document.getElementById('btnGenerateGroupsMenu').onclick = () => {
+  wireSplitBtnToggle('btnGenerateGroupsMenu', () => {
     if (!App.data.students.length) { alert(t('noStudents')); return; }
     const r = document.getElementById('btnGenerateGroupsMenu').closest('.split-btn').getBoundingClientRect();
     showMenuAt(r.left, r.bottom + 4, [
       [t('genderAlike'), () => { App.data.group_assignment = generateTeamGroups(App.data, groupCountFor(App.data), 'uneven'); saveCurrentClass(); renderGroupsTab(); }],
       [t('genderUnlike'), () => { App.data.group_assignment = generateTeamGroups(App.data, groupCountFor(App.data), 'even'); saveCurrentClass(); renderGroupsTab(); }],
     ], r.width);
-  };
+  });
   document.getElementById('btnCopyGroups').onclick = copyGroupsAsText;
   document.getElementById('btnClearGroups').onclick = () => {
     if (!Object.keys(App.data.group_assignment).length) return;
