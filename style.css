@@ -319,7 +319,7 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 .group-card-dragging { opacity: .55; outline: 2px dashed var(--accent); outline-offset: 2px; }
 
 /* -- Liste-fana: avkryssingsliste -- */
-.checklist-panel { max-width: 640px; margin: 0 auto; }
+.checklist-panel { max-width: 860px; margin: 0 auto; }
 .checklist-rows { display: flex; flex-direction: column; gap: .05rem; }
 .checklist-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .18rem .5rem; border-radius: calc(var(--radius) * .4); }
 .checklist-row:nth-child(odd) { background: var(--row-bg); }
