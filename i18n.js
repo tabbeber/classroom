@@ -8,7 +8,7 @@ nn: {
   tabClass: "Klasse", tabRoom: "Klasserom", tabSeating: "Plassering", tabGroups: "Grupper", tabList: "Liste", tabSettings: "Innstillingar",
   checklistColumnsLabel: "Tal kolonnar:", clearChecklist: "Tøm avkryssingar",
   checklistHint: "Klikk på namnet til ein elev for å merke han/ho fråverande.", checklistNameHint: "Klikk for å merke fråverande/til stades",
-  checklistCommentPlaceholder: "Kommentar...", confirmClearChecklist: "Tøme alle avkryssingar? Namn og kommentarar vert verande.",
+  checklistCommentPlaceholder: "Kommentar...", confirmClearChecklist: "Nullstille heile lista? Avkryssingar, kommentarar og fråversmerking vert alle fjerna, klar for ny dag.",
 
   classesHeading: "Klassar", newClass: "Ny klasse", renameClass: "Endre namn",
   welcomeTitle: "Velkomen!", welcomeText: "Du har ingen klassar enno. Trykk «Ny klasse» til venstre for å kome i gang.",
@@ -140,7 +140,7 @@ nb: {
   tabClass: "Klasse", tabRoom: "Klasserom", tabSeating: "Plassering", tabGroups: "Grupper", tabList: "Liste", tabSettings: "Innstillinger",
   checklistColumnsLabel: "Antall kolonner:", clearChecklist: "Tøm avkrysninger",
   checklistHint: "Klikk på navnet til en elev for å merke han/henne fraværende.", checklistNameHint: "Klikk for å merke fraværende/til stede",
-  checklistCommentPlaceholder: "Kommentar...", confirmClearChecklist: "Tømme alle avkrysninger? Navn og kommentarer blir værende.",
+  checklistCommentPlaceholder: "Kommentar...", confirmClearChecklist: "Nullstille hele listen? Avkrysninger, kommentarer og fraværsmerking blir alle fjernet, klar for ny dag.",
 
   classesHeading: "Klasser", newClass: "Ny klasse", renameClass: "Endre navn",
   welcomeTitle: "Velkommen!", welcomeText: "Du har ingen klasser ennå. Trykk «Ny klasse» til venstre for å komme i gang.",
@@ -272,7 +272,7 @@ en: {
   tabClass: "Class", tabRoom: "Room", tabSeating: "Seating", tabGroups: "Groups", tabList: "List", tabSettings: "Settings",
   checklistColumnsLabel: "Number of columns:", clearChecklist: "Clear checkmarks",
   checklistHint: "Click a student's name to mark them absent.", checklistNameHint: "Click to mark absent/present",
-  checklistCommentPlaceholder: "Comment...", confirmClearChecklist: "Clear all checkmarks? Names and comments will remain.",
+  checklistCommentPlaceholder: "Comment...", confirmClearChecklist: "Reset the whole list? Checkmarks, comments, and absence marks will all be cleared, ready for a new day.",
 
   classesHeading: "Classes", newClass: "New class", renameClass: "Rename",
   welcomeTitle: "Welcome!", welcomeText: "You have no classes yet. Click \"New class\" on the left to get started.",

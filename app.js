@@ -2215,9 +2215,14 @@ function wireEvents() {
     saveCurrentClass(); renderListTab();
   };
   document.getElementById('btnClearChecklist').onclick = () => {
-    if (!Object.keys(App.data.checklist_checks).length) return;
+    const hasAnything = Object.keys(App.data.checklist_checks).length || Object.keys(App.data.checklist_comments).length
+      || App.data.students.some(s => isAbsentToday(App.data, s));
+    if (!hasAnything) return;
     if (!confirm(t('confirmClearChecklist'))) return;
-    App.data.checklist_checks = {}; saveCurrentClass(); renderListTab();
+    App.data.checklist_checks = {};
+    App.data.checklist_comments = {};
+    for (const name of App.data.students) setAbsentToday(App.data, name, false);
+    saveCurrentClass(); renderListTab();
   };
   document.getElementById('btnSortGroups').onclick = () => { App.data.group_order = null; saveCurrentClass(); renderGroupCards(); };
   wireSplitBtnToggle('btnSortGroupsMenu', () => {
