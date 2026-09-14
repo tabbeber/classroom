@@ -1618,7 +1618,7 @@ function renderStudentRows() {
       if (!newName) { input.value = name; return; }
       if (newName === name) return;
       if (!renameStudent(App.data, name, newName)) { input.value = name; alert(t('duplicateStudentName')); return; }
-      saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab();
+      saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab(); renderListTab();
     };
     row.appendChild(input);
     const current = App.data.genders[name] || '';
@@ -1635,7 +1635,7 @@ function renderStudentRows() {
       if (!confirm(t('confirmRemoveStudent', { name }))) return;
       removeStudent(App.data, name);
       ensureConsistency(App.room, App.data);
-      saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab();
+      saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab(); renderListTab();
     };
     row.appendChild(rm);
     (idx < PER_COL ? col1 : col2).appendChild(row);
@@ -1849,7 +1849,7 @@ function switchClass(id) {
   App.roomDirty = false; updateRoomDraftBar();
   App.arrangementDirty = false; App.showRepeatWarnings = false; updateSaveHistoryButtonState();
   syncFlipButton(); syncMirrorButton();
-  renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab();
+  renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab(); renderListTab();
   return true;
 }
 function switchRoom(id) {
@@ -2052,7 +2052,7 @@ function wireEvents() {
     if (!input.value.trim()) return;
     addStudentsFromText(input.value);
     input.value = '';
-    saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderGroupsTab();
+    saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderGroupsTab(); renderListTab();
   };
   document.getElementById('newStudentInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); document.getElementById('btnAddStudent').click(); }
@@ -2062,14 +2062,14 @@ function wireEvents() {
     if (text.includes('\n')) {
       e.preventDefault();
       addStudentsFromText(text);
-      saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderGroupsTab();
+      saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderGroupsTab(); renderListTab();
     }
   });
   document.getElementById('btnImportStudents').onclick = () => document.getElementById('importStudentsFile').click();
   document.getElementById('importStudentsFile').onchange = async e => {
     const file = e.target.files[0]; if (!file) return;
     addStudentsFromText(await file.text());
-    saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderGroupsTab();
+    saveCurrentClass(); renderClassTab(); renderAllRoomViews(); renderPool(); renderGroupsTab(); renderListTab();
     e.target.value = '';
   };
   document.getElementById('blPickA').onchange = renderBlacklistChecklist;
@@ -2416,7 +2416,7 @@ function init() {
     App.roomId = null; App.room = newRoomData();
     App.selectedSeat = null; App.selectedStudent = null; App.multiSelected = new Set(); App.armedStudent = null;
     syncFlipButton(); syncMirrorButton();
-    renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab();
+    renderClassTab(); renderRoomTab(); renderAllRoomViews(); renderPool(); renderInfoPanel(); renderGroupsTab(); renderListTab();
   } else {
     if (!defId) defId = Store.createClass(t('newClass'), null);
     switchClass(defId);
