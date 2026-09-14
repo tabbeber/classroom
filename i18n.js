@@ -5,7 +5,10 @@
 const I18N = {
 nn: {
   appTitle: "Klasseromplassering",
-  tabClass: "Klasse", tabRoom: "Klasserom", tabSeating: "Plassering", tabGroups: "Grupper", tabSettings: "Innstillingar",
+  tabClass: "Klasse", tabRoom: "Klasserom", tabSeating: "Plassering", tabGroups: "Grupper", tabList: "Liste", tabSettings: "Innstillingar",
+  checklistColumnsLabel: "Tal kolonnar:", clearChecklist: "Tøm avkryssingar",
+  checklistHint: "Klikk på namnet til ein elev for å merke han/ho fråverande.", checklistNameHint: "Klikk for å merke fråverande/til stades",
+  checklistCommentPlaceholder: "Kommentar...", confirmClearChecklist: "Tøme alle avkryssingar? Namn og kommentarar vert verande.",
 
   classesHeading: "Klassar", newClass: "Ny klasse", renameClass: "Endre namn",
   welcomeTitle: "Velkomen!", welcomeText: "Du har ingen klassar enno. Trykk «Ny klasse» til venstre for å kome i gang.",
@@ -67,7 +70,9 @@ nn: {
   removeStudent: "Fjern elev", confirmRemoveStudent: "Fjerne {name} frå klassen? Dette fjernar òg plassering og historikk for eleven.",
   duplicateStudentName: "Ein elev med det namnet finst alt.", addStudent: "Legg til", newStudentPlaceholder: "Nytt elevnamn...",
   groupModeLabel: "Del inn etter:", groupModeCount: "Talet på grupper", groupModeSize: "Elevar per gruppe",
-  generateGroups: "Fordel automatisk", clearGroups: "Tøm grupper", groupPoolHelp: "Ufordelte elevar. Klikk eller dra for å plassere i ei gruppe.",
+  generateGroups: "Fordel automatisk", clearGroups: "Tøm grupper",
+  groupSortReset: "Standard rekkjefølgje", groupSortCount: "Flest fyrst", groupSortAlpha: "Alfabetisk", moreSortOptions: "Fleire sorteringsval", dragGroupHint: "Dra for å flytte gruppa",
+  deleteGroup: "Slett gruppa", confirmDeleteGroup: "Slette denne tomme gruppa? Seinare grupper vert flytta ned éin plass.", groupPoolHelp: "Ufordelte elevar. Klikk eller dra for å plassere i ei gruppe.",
   allGrouped: "Alle elevar er fordelte i grupper.", groupLabel: "Gruppe {n}",
   genderEven: "Fordel kjønn jamnt", genderUneven: "Fordel kjønn ujamnt", moreDistributeOptions: "Fleire fordelingsval",
   groupAddZoneHint: "Legg til her (utan å byte plass med nokon)", copyGroups: "Kopier grupper som tekst",
@@ -132,7 +137,10 @@ nn: {
 
 nb: {
   appTitle: "Klasseromsplassering",
-  tabClass: "Klasse", tabRoom: "Klasserom", tabSeating: "Plassering", tabGroups: "Grupper", tabSettings: "Innstillinger",
+  tabClass: "Klasse", tabRoom: "Klasserom", tabSeating: "Plassering", tabGroups: "Grupper", tabList: "Liste", tabSettings: "Innstillinger",
+  checklistColumnsLabel: "Antall kolonner:", clearChecklist: "Tøm avkrysninger",
+  checklistHint: "Klikk på navnet til en elev for å merke han/henne fraværende.", checklistNameHint: "Klikk for å merke fraværende/til stede",
+  checklistCommentPlaceholder: "Kommentar...", confirmClearChecklist: "Tømme alle avkrysninger? Navn og kommentarer blir værende.",
 
   classesHeading: "Klasser", newClass: "Ny klasse", renameClass: "Endre navn",
   welcomeTitle: "Velkommen!", welcomeText: "Du har ingen klasser ennå. Trykk «Ny klasse» til venstre for å komme i gang.",
@@ -194,7 +202,9 @@ nb: {
   removeStudent: "Fjern elev", confirmRemoveStudent: "Fjerne {name} fra klassen? Dette fjerner også plassering og historikk for eleven.",
   duplicateStudentName: "En elev med det navnet finnes allerede.", addStudent: "Legg til", newStudentPlaceholder: "Nytt elevnavn...",
   groupModeLabel: "Del inn etter:", groupModeCount: "Antall grupper", groupModeSize: "Elever per gruppe",
-  generateGroups: "Fordel automatisk", clearGroups: "Tøm grupper", groupPoolHelp: "Ufordelte elever. Klikk eller dra for å plassere i en gruppe.",
+  generateGroups: "Fordel automatisk", clearGroups: "Tøm grupper",
+  groupSortReset: "Standard rekkefølge", groupSortCount: "Flest først", groupSortAlpha: "Alfabetisk", moreSortOptions: "Flere sorteringsvalg", dragGroupHint: "Dra for å flytte gruppen",
+  deleteGroup: "Slett gruppen", confirmDeleteGroup: "Slette denne tomme gruppen? Senere grupper flyttes ned én plass.", groupPoolHelp: "Ufordelte elever. Klikk eller dra for å plassere i en gruppe.",
   allGrouped: "Alle elever er fordelt i grupper.", groupLabel: "Gruppe {n}",
   genderEven: "Fordel kjønn jevnt", genderUneven: "Fordel kjønn ujevnt", moreDistributeOptions: "Flere fordelingsvalg",
   groupAddZoneHint: "Legg til her (uten å bytte plass med noen)", copyGroups: "Kopier grupper som tekst",
@@ -259,7 +269,10 @@ nb: {
 
 en: {
   appTitle: "Classroom Seating",
-  tabClass: "Class", tabRoom: "Room", tabSeating: "Seating", tabGroups: "Groups", tabSettings: "Settings",
+  tabClass: "Class", tabRoom: "Room", tabSeating: "Seating", tabGroups: "Groups", tabList: "List", tabSettings: "Settings",
+  checklistColumnsLabel: "Number of columns:", clearChecklist: "Clear checkmarks",
+  checklistHint: "Click a student's name to mark them absent.", checklistNameHint: "Click to mark absent/present",
+  checklistCommentPlaceholder: "Comment...", confirmClearChecklist: "Clear all checkmarks? Names and comments will remain.",
 
   classesHeading: "Classes", newClass: "New class", renameClass: "Rename",
   welcomeTitle: "Welcome!", welcomeText: "You have no classes yet. Click \"New class\" on the left to get started.",
@@ -321,7 +334,9 @@ en: {
   removeStudent: "Remove student", confirmRemoveStudent: "Remove {name} from the class? This also removes their seating and history.",
   duplicateStudentName: "A student with that name already exists.", addStudent: "Add", newStudentPlaceholder: "New student name...",
   groupModeLabel: "Divide by:", groupModeCount: "Number of groups", groupModeSize: "Students per group",
-  generateGroups: "Distribute automatically", clearGroups: "Clear groups", groupPoolHelp: "Unassigned students. Click or drag to place into a group.",
+  generateGroups: "Distribute automatically", clearGroups: "Clear groups",
+  groupSortReset: "Default order", groupSortCount: "Most first", groupSortAlpha: "Alphabetical", moreSortOptions: "More sort options", dragGroupHint: "Drag to move this group",
+  deleteGroup: "Delete group", confirmDeleteGroup: "Delete this empty group? Later groups will shift down by one.", groupPoolHelp: "Unassigned students. Click or drag to place into a group.",
   allGrouped: "All students are assigned to groups.", groupLabel: "Group {n}",
   genderEven: "Distribute gender evenly", genderUneven: "Distribute gender unevenly", moreDistributeOptions: "More distribution options",
   groupAddZoneHint: "Add here (without swapping with anyone)", copyGroups: "Copy groups as text",

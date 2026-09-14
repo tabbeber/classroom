@@ -1155,6 +1155,48 @@ function renderPool() {
 }
 
 // -- Grupper-fana: fordel elevar i N grupper, uavhengig av rom/sete-geometri --
+// -- Liste-fana: alfabetisk avkryssingsliste (t.d. for turar/opptelling) --
+function renderListTab() {
+  document.getElementById('checklistColumnCount').value = App.data.checklist_column_count || 3;
+  const wrap = document.getElementById('checklistRows'); wrap.innerHTML = '';
+  if (!App.data.students.length) { wrap.innerHTML = `<p class="hint">${t('noStudents')}</p>`; return; }
+  const sorted = [...App.data.students].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  const n = App.data.checklist_column_count || 3;
+  for (const name of sorted) {
+    const absent = isAbsentToday(App.data, name);
+    const row = document.createElement('div'); row.className = 'checklist-row' + (absent ? ' absent' : '');
+
+    const nameBtn = document.createElement('button'); nameBtn.className = 'checklist-name-btn'; nameBtn.textContent = name;
+    nameBtn.title = t('checklistNameHint');
+    nameBtn.onclick = () => { setAbsentToday(App.data, name, !isAbsentToday(App.data, name)); saveCurrentClass(); renderListTab(); };
+    row.appendChild(nameBtn);
+
+    const boxWrap = document.createElement('div'); boxWrap.className = 'checklist-boxes';
+    const checks = App.data.checklist_checks[name] || [];
+    for (let i = 0; i < n; i++) {
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!checks[i];
+      cb.onchange = () => {
+        const arr = (App.data.checklist_checks[name] = App.data.checklist_checks[name] || []);
+        arr[i] = cb.checked;
+        saveCurrentClass();
+      };
+      boxWrap.appendChild(cb);
+    }
+    row.appendChild(boxWrap);
+
+    const comment = document.createElement('input'); comment.type = 'text'; comment.className = 'checklist-comment';
+    comment.value = App.data.checklist_comments[name] || '';
+    comment.placeholder = t('checklistCommentPlaceholder');
+    comment.onchange = () => {
+      const v = comment.value.trim();
+      if (v) App.data.checklist_comments[name] = v; else delete App.data.checklist_comments[name];
+      saveCurrentClass();
+    };
+    row.appendChild(comment);
+
+    wrap.appendChild(row);
+  }
+}
 function renderGroupsTab() {
   document.getElementById('groupModeSelect').value = App.data.group_settings.mode;
   document.getElementById('groupValueInput').value = App.data.group_settings.value;
@@ -1180,14 +1222,26 @@ function groupDisplayName(idx) {
   const custom = (App.data.group_names || {})[idx];
   return custom || t('groupLabel', { n: idx + 1 });
 }
+// Returnerer ei gyldig visingsrekkjefølgje for gruppene: bruker lagra
+// group_order om han finst og stemmer med gjeldande tal grupper, elles
+// standard rekkjefølgje 0..n-1.
+function effectiveGroupOrder(cls, n) {
+  const stored = cls.group_order;
+  if (stored && stored.length === n && new Set(stored).size === n && stored.every(i => i >= 0 && i < n)) return stored;
+  return Array.from({ length: n }, (_, i) => i);
+}
 function renderGroupCards() {
   const wrap = document.getElementById('groupsCanvas'); wrap.innerHTML = '';
   const n = groupCountFor(App.data), assigned = App.data.group_assignment || {};
-  for (let i = 0; i < n; i++) {
+  const indices = effectiveGroupOrder(App.data, n);
+  for (const i of indices) {
     const members = App.data.students.filter(s => assigned[s] === i);
     const card = document.createElement('div'); card.className = 'group-card'; card.dataset.group = i;
 
     const head = document.createElement('div'); head.className = 'group-card-head';
+    const dragHandle = document.createElement('span'); dragHandle.className = 'group-drag-handle'; dragHandle.textContent = '\u2630'; dragHandle.title = t('dragGroupHint');
+    dragHandle.addEventListener('pointerdown', e => onGroupCardDragStart(e, i));
+    head.appendChild(dragHandle);
     const nameInput = document.createElement('input'); nameInput.className = 'group-name-input';
     nameInput.value = (App.data.group_names || {})[i] || '';
     nameInput.placeholder = t('groupLabel', { n: i + 1 });
@@ -1200,6 +1254,11 @@ function renderGroupCards() {
     head.appendChild(nameInput);
     const countSpan = document.createElement('span'); countSpan.className = 'hint'; countSpan.textContent = `(${members.length})`;
     head.appendChild(countSpan);
+    if (!members.length && n > 1) {
+      const delBtn = document.createElement('button'); delBtn.className = 'group-delete-btn'; delBtn.textContent = '\u00d7'; delBtn.title = t('deleteGroup');
+      delBtn.onclick = () => deleteEmptyGroup(i);
+      head.appendChild(delBtn);
+    }
     card.appendChild(head);
 
     const memWrap = document.createElement('div'); memWrap.className = 'group-members'; memWrap.dataset.group = i;
@@ -1219,6 +1278,69 @@ function renderGroupCards() {
 
     wrap.appendChild(card);
   }
+}
+// Dreg eit gruppekort til ein ny posisjon i visingsrekkjefølgja (reint
+// visuelt - påverkar ikkje sjølve gruppetilordningane). Byter plass med
+// kortet som vert "hoppa over" undervegs, ein enkel og robust metode
+// for eit flex-wrap-rutenett.
+function onGroupCardDragStart(e, gid) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const startX = e.clientX, startY = e.clientY;
+  const cardEl = e.target.closest('.group-card');
+  let dragging = false, order = effectiveGroupOrder(App.data, groupCountFor(App.data)).slice();
+
+  const onMove = ev => {
+    if (!dragging) {
+      if (Math.abs(ev.clientX - startX) < 6 && Math.abs(ev.clientY - startY) < 6) return;
+      dragging = true; cardEl.classList.add('group-card-dragging');
+    }
+    const overEl = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.group-card');
+    if (overEl && overEl !== cardEl) {
+      const overGid = parseInt(overEl.dataset.group);
+      const fromIdx = order.indexOf(gid), toIdx = order.indexOf(overGid);
+      if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+        order.splice(fromIdx, 1); order.splice(toIdx, 0, gid);
+        App.data.group_order = order.slice();
+        renderGroupCards();
+        // renderGroupCards byggjer korta på nytt - hald fram å referere det same (no re-oppretta) kortet.
+        const fresh = document.querySelector(`.group-card[data-group="${gid}"]`);
+        if (fresh) fresh.classList.add('group-card-dragging');
+      }
+    }
+  };
+  const onUp = () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.querySelectorAll('.group-card-dragging').forEach(el => el.classList.remove('group-card-dragging'));
+    if (dragging) saveCurrentClass();
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+// Slettar ei TOM gruppe: skuvar alle seinare gruppeindeksar (tilordningar
+// og eigne namn) ned éin, og set ei manuell overstyring av gruppetalet
+// slik at det ikkje sprett tilbake til det auto-utrekna talet.
+function deleteEmptyGroup(idx) {
+  const cls = App.data, n = groupCountFor(cls);
+  if (!confirm(t('confirmDeleteGroup'))) return;
+  const newAssignment = {};
+  for (const [name, gi] of Object.entries(cls.group_assignment || {})) {
+    if (gi === idx) continue;
+    newAssignment[name] = gi > idx ? gi - 1 : gi;
+  }
+  cls.group_assignment = newAssignment;
+  const newNames = {};
+  for (const [gi, name] of Object.entries(cls.group_names || {})) {
+    const gNum = parseInt(gi);
+    if (gNum === idx) continue;
+    newNames[gNum > idx ? gNum - 1 : gNum] = name;
+  }
+  cls.group_names = newNames;
+  cls.group_count_override = Math.max(1, n - 1);
+  cls.group_order = null;
+  saveCurrentClass();
+  renderGroupsTab();
 }
 function attachGroupItemEvents(el, name) {
   el.addEventListener('pointerdown', e => onGroupItemPointerDown(e, name));
@@ -2057,9 +2179,12 @@ function wireEvents() {
 
   // -- Grupper-fane --
   document.getElementById('groupPoolCollapseBtn').onclick = () => toggleSidePanel(document.getElementById('groupPoolPanel'), 'groupPoolCollapsed');
-  document.getElementById('groupModeSelect').onchange = e => { App.data.group_settings.mode = e.target.value; saveCurrentClass(); renderGroupsTab(); };
+  document.getElementById('groupModeSelect').onchange = e => {
+    App.data.group_settings.mode = e.target.value; App.data.group_count_override = null;
+    saveCurrentClass(); renderGroupsTab();
+  };
   document.getElementById('groupValueInput').onchange = e => {
-    App.data.group_settings.value = Math.max(1, parseInt(e.target.value) || 1);
+    App.data.group_settings.value = Math.max(1, parseInt(e.target.value) || 1); App.data.group_count_override = null;
     saveCurrentClass(); renderGroupsTab();
   };
   document.getElementById('btnGenerateGroups').onclick = () => {
@@ -2080,6 +2205,38 @@ function wireEvents() {
     if (!Object.keys(App.data.group_assignment).length) return;
     App.data.group_assignment = {}; saveCurrentClass(); renderGroupsTab();
   };
+  document.getElementById('checklistColumnCount').onchange = e => {
+    const n = Math.max(1, Math.min(10, parseInt(e.target.value) || 3));
+    App.data.checklist_column_count = n;
+    for (const name of Object.keys(App.data.checklist_checks)) {
+      const arr = App.data.checklist_checks[name];
+      App.data.checklist_checks[name] = Array.from({ length: n }, (_, i) => !!arr[i]);
+    }
+    saveCurrentClass(); renderListTab();
+  };
+  document.getElementById('btnClearChecklist').onclick = () => {
+    if (!Object.keys(App.data.checklist_checks).length) return;
+    if (!confirm(t('confirmClearChecklist'))) return;
+    App.data.checklist_checks = {}; saveCurrentClass(); renderListTab();
+  };
+  document.getElementById('btnSortGroups').onclick = () => { App.data.group_order = null; saveCurrentClass(); renderGroupCards(); };
+  wireSplitBtnToggle('btnSortGroupsMenu', () => {
+    const r = document.getElementById('btnSortGroupsMenu').closest('.split-btn').getBoundingClientRect();
+    showMenuAt(r.left, r.bottom + 4, [
+      [t('groupSortCount'), () => {
+        const n = groupCountFor(App.data), assigned = App.data.group_assignment || {};
+        const order = effectiveGroupOrder(App.data, n).slice();
+        order.sort((a, b) => App.data.students.filter(s => assigned[s] === b).length - App.data.students.filter(s => assigned[s] === a).length);
+        App.data.group_order = order; saveCurrentClass(); renderGroupCards();
+      }],
+      [t('groupSortAlpha'), () => {
+        const n = groupCountFor(App.data);
+        const order = effectiveGroupOrder(App.data, n).slice();
+        order.sort((a, b) => groupDisplayName(a).localeCompare(groupDisplayName(b), undefined, { numeric: true, sensitivity: 'base' }));
+        App.data.group_order = order; saveCurrentClass(); renderGroupCards();
+      }],
+    ], r.width);
+  });
   document.getElementById('groupPoolList').addEventListener('click', e => {
     if (!e.target.closest('.pool-item') && App.armedStudent) unassignFromGroup(App.armedStudent);
   });
@@ -2139,6 +2296,7 @@ function switchTab(name) {
   if (name === 'class') renderClassTab();
   if (name === 'room') { renderRoomTab(); renderPool(); renderInfoPanel(); }
   if (name === 'groups') renderGroupsTab();
+  if (name === 'list') renderListTab();
 }
 
 // -- Nullstill alt (krev at brukaren skriv eit stadfestingsord - vernar mot uhell) --

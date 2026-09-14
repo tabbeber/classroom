@@ -21,7 +21,8 @@ function newClassData() {
     version: CLASS_VERSION, room_id: null, students: [], locked: {}, arrangement: {},
     sessions: [], blacklist: [], genders: {}, gender_weight_mode: 'ingen',
     room_states: {}, // andre (ikkje-aktive) rom denne klassen har brukt: romId -> {arrangement, locked, sessions}
-    group_settings: { mode: 'count', value: 4 }, group_assignment: {}, group_names: {}, // Grupper-fana (uavhengig av rom)
+    group_settings: { mode: 'count', value: 4 }, group_assignment: {}, group_names: {}, group_count_override: null, group_order: null, // Grupper-fana (uavhengig av rom)
+    checklist_column_count: 3, checklist_checks: {}, checklist_comments: {}, // Liste-fana
     absent_today: {}, // studentnamn -> datostreng (YYYY-MM-DD), nullstillar seg sjølv neste dag
   };
 }
@@ -253,6 +254,7 @@ function ensureConsistency(r, cls) {
 
 // -- Grupper (uavhengig av rom/sete-geometri) --
 function groupCountFor(cls) {
+  if (cls.group_count_override) return Math.max(1, cls.group_count_override);
   const gs = cls.group_settings || { mode: 'count', value: 4 };
   const n = Math.max(1, cls.students.length);
   return gs.mode === 'size' ? Math.max(1, Math.ceil(n / Math.max(1, gs.value))) : Math.max(1, gs.value);
@@ -581,6 +583,11 @@ function normalizeClassData(raw) {
   cls.group_settings = raw.group_settings || { mode: 'count', value: 4 };
   cls.group_assignment = raw.group_assignment || {};
   cls.group_names = raw.group_names || {};
+  cls.group_count_override = raw.group_count_override ?? null;
+  cls.group_order = raw.group_order || null;
+  cls.checklist_column_count = raw.checklist_column_count || 3;
+  cls.checklist_checks = raw.checklist_checks || {};
+  cls.checklist_comments = raw.checklist_comments || {};
   cls.absent_today = raw.absent_today || {};
 
   const version = raw.version || 1;

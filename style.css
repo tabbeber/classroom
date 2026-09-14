@@ -29,12 +29,13 @@ html { font-size: calc(15px * var(--font-scale)); }
 body {
   margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: var(--ink);
   background: var(--page-bg) var(--bg-image) center/cover fixed no-repeat;
-  min-height: 100vh; display: flex; flex-direction: column;
+  min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden;
 }
 
 /* -- Header -- */
 header.topbar {
-  display: flex; align-items: center; gap: .75rem; padding: .6rem 1rem;
+  display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem;
+  padding: .6rem 1rem;
   background: var(--header-bg); color: white; backdrop-filter: blur(6px);
 }
 header.topbar h1 { font-size: 1.05rem; margin: 0; font-weight: 600; flex: 0 0 auto; }
@@ -65,7 +66,7 @@ header.topbar h1 { font-size: 1.05rem; margin: 0; font-weight: 600; flex: 0 0 au
 #langSwitchSettings button.active { background: var(--accent); border-color: var(--accent); color: white; }
 
 /* -- Faner -- */
-nav.tabs { display: flex; gap: .3rem; padding: .5rem 1rem 0; background: transparent; justify-content: center; }
+nav.tabs { display: flex; flex-wrap: wrap; gap: .3rem; padding: .5rem 1rem 0; background: transparent; justify-content: center; }
 nav.tabs button {
   padding: .55rem 1.1rem; border: none; border-radius: var(--radius) var(--radius) 0 0;
   background: rgba(var(--glass-rgb),.55); color: var(--ink); font-weight: 600; cursor: pointer;
@@ -123,7 +124,7 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
   background: rgba(var(--glass-rgb),.55); backdrop-filter: blur(6px);
   padding: .4rem .5rem; border-radius: var(--radius);
 }
-.row { display: flex; gap: .5rem; align-items: center; }
+.row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
 .hint {
   color: var(--muted); font-size: calc(.85rem * var(--font-scale));
   background: rgba(var(--glass-rgb),.55); backdrop-filter: blur(6px);
@@ -145,7 +146,7 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 /* -- Klasse-fane: lister -- */
 .class-list { display: flex; flex-direction: column; gap: .35rem; }
 .class-list .item {
-  display: flex; align-items: center; gap: .5rem; padding: .4rem .6rem; cursor: pointer;
+  display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .4rem .6rem; cursor: pointer;
   border-radius: calc(var(--radius) * .6); background: var(--row-bg);
 }
 .class-list .item.active { background: var(--row-active); }
@@ -187,7 +188,7 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 .gender-radio input { margin: 0; }
 .student-rows-container { display: flex; gap: 1rem; max-height: 480px; overflow-y: auto; }
 .student-rows-col { flex: 1; min-width: 230px; }
-.student-row { display: flex; align-items: center; gap: .25rem; padding: .1rem .15rem; border-radius: calc(var(--radius) * .35); }
+.student-row { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; padding: .1rem .15rem; border-radius: calc(var(--radius) * .35); }
 .student-row:hover { background: var(--row-bg); }
 .student-row .name-input {
   flex: 1; min-width: 0; border: 1px solid transparent; background: transparent;
@@ -239,6 +240,11 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
 .side-panel { display: flex; flex-direction: column; gap: .4rem; position: relative; }
 .pool-panel { width: 220px; flex: 0 0 auto; min-width: 44px; resize: horizontal; overflow: hidden; }
 .info-panel { width: 260px; flex: 0 0 auto; min-width: 44px; resize: horizontal; overflow: hidden; }
+@media (max-width: 760px) {
+  .seating-layout { flex-direction: column; }
+  .pool-panel, .info-panel, .appearance-side-panel { width: 100% !important; resize: none; max-height: 220px; }
+  .pool-panel .side-panel-body, .info-panel .side-panel-body { max-height: 180px; overflow-y: auto; }
+}
 .side-panel.collapsed { width: 40px !important; resize: none; }
 .side-panel.collapsed .side-panel-body { display: none; }
 .side-panel.collapsed .side-panel-head { justify-content: center; }
@@ -305,6 +311,33 @@ input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(-
   padding: .6rem; width: 220px; min-height: 120px; display: flex; flex-direction: column;
 }
 .group-card-head { display: flex; align-items: center; gap: .4rem; margin-bottom: .4rem; }
+.group-drag-handle {
+  flex-shrink: 0; cursor: grab; color: var(--muted); font-size: .9rem; line-height: 1;
+  padding: .1rem .2rem; user-select: none; touch-action: none;
+}
+.group-drag-handle:hover { color: var(--ink); }
+.group-card-dragging { opacity: .55; outline: 2px dashed var(--accent); outline-offset: 2px; }
+
+/* -- Liste-fana: avkryssingsliste -- */
+.checklist-panel { max-width: 640px; margin: 0 auto; }
+.checklist-rows { display: flex; flex-direction: column; gap: .05rem; }
+.checklist-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .18rem .5rem; border-radius: calc(var(--radius) * .4); }
+.checklist-row:nth-child(odd) { background: var(--row-bg); }
+.checklist-row.absent { opacity: .5; }
+.checklist-row.absent .checklist-name-btn { text-decoration: line-through; }
+.checklist-name-btn {
+  flex: 0 0 150px; text-align: left; background: transparent; border: 1px solid transparent;
+  font-weight: 600; padding: .1rem .4rem; border-radius: calc(var(--radius) * .3); color: var(--ink);
+}
+.checklist-name-btn:hover { background: var(--row-active); border-color: var(--panel-border); }
+.checklist-boxes { display: flex; gap: .55rem; flex-shrink: 0; align-items: center; }
+.checklist-boxes input[type=checkbox] { width: 1.15rem; height: 1.15rem; cursor: pointer; }
+.checklist-comment { flex: 0 1 160px; min-width: 90px; }
+.group-delete-btn {
+  flex-shrink: 0; padding: .1rem .5rem; line-height: 1.4; color: #ef4444; border-color: transparent;
+  background: transparent; font-size: 1rem; font-weight: 700;
+}
+.group-delete-btn:hover { border-color: #ef4444; background: rgba(239,68,68,.1); }
 .group-name-input {
   flex: 1; min-width: 0; border: none; background: transparent; font-weight: 700; padding: .1rem .2rem;
   border-radius: calc(var(--radius) * .3); color: var(--ink);

@@ -40,6 +40,7 @@
   <button class="tab-btn active" data-tab="class"><span data-i18n="tabClass">Klasse</span></button>
   <button class="tab-btn" data-tab="room"><span data-i18n="tabRoom">Klasserom</span></button>
   <button class="tab-btn" data-tab="groups"><span data-i18n="tabGroups">Grupper</span></button>
+  <button class="tab-btn" data-tab="list"><span data-i18n="tabList">Liste</span></button>
   <button class="tab-btn" data-tab="settings"><span data-i18n="tabSettings">Innstillingar</span></button>
 </nav>
 
@@ -274,6 +275,10 @@
         <button id="btnGenerateGroupsMenu" class="primary split-btn-arrow" title="Fleire fordelingsval" data-i18n-title="moreDistributeOptions">&#9662;</button>
       </div>
       <button id="btnClearGroups" data-i18n="clearGroups">Tøm grupper</button>
+      <div class="split-btn">
+        <button id="btnSortGroups" data-i18n="groupSortReset">Standard rekkjefølgje</button>
+        <button id="btnSortGroupsMenu" class="split-btn-arrow" title="Fleire sorteringsval" data-i18n-title="moreSortOptions">&#9662;</button>
+      </div>
       <span class="spacer"></span>
       <button id="btnCopyGroups" class="needs-save" data-i18n="copyGroups">Kopier grupper som tekst</button>
     </div>
@@ -293,6 +298,19 @@
           <div class="groups-canvas" id="groupsCanvas"></div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ===================== LISTE ===================== -->
+  <section id="tab-list" class="tabview">
+    <div class="toolbar">
+      <span data-i18n="checklistColumnsLabel">Tal kolonnar:</span>
+      <input type="number" id="checklistColumnCount" min="1" max="10" style="width:4rem" value="3">
+      <button id="btnClearChecklist" data-i18n="clearChecklist">Tøm avkryssingar</button>
+      <span class="hint" data-i18n="checklistHint">Klikk på namnet til ein elev for å merke han/ho fråverande.</span>
+    </div>
+    <div class="panel checklist-panel">
+      <div id="checklistRows" class="checklist-rows"></div>
     </div>
   </section>
 
