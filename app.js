@@ -967,7 +967,9 @@ function hexToRgba(hex, alpha) {
 async function drawSeatingChart(canvas, flipped, arrangementOverride, titleOverride, whiteBg) {
   const room = App.room, cls = App.data, { w: seatW, h: seatH } = computeSeatSize(cls.students);
   const arrangement = arrangementOverride || cls.arrangement;
-  const layoutRoom = { groups: room.groups, view_flipped: flipped };
+  // Snu visning i førehandsvisinga skal rotere 180 grader (ikkje berre
+  // spegle éin akse), difor set vi begge uavhengige aksane likt her.
+  const layoutRoom = { groups: room.groups, view_flipped: flipped, view_mirrored: flipped };
   const { positions, boardRect, totalW, totalH } = computeLayout(layoutRoom, seatW, seatH);
   const titleH = 40;
   canvas.width = totalW; canvas.height = totalH + titleH;
