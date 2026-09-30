@@ -964,12 +964,10 @@ function hexToRgba(hex, alpha) {
   const h = hex.replace('#', ''), n = parseInt(h.length === 3 ? h.replace(/(.)/g, '$1$1') : h, 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
-async function drawSeatingChart(canvas, flipped, arrangementOverride, titleOverride, whiteBg) {
+async function drawSeatingChart(canvas, flipped, mirrored, arrangementOverride, titleOverride, whiteBg) {
   const room = App.room, cls = App.data, { w: seatW, h: seatH } = computeSeatSize(cls.students);
   const arrangement = arrangementOverride || cls.arrangement;
-  // Snu visning i førehandsvisinga skal rotere 180 grader (ikkje berre
-  // spegle éin akse), difor set vi begge uavhengige aksane likt her.
-  const layoutRoom = { groups: room.groups, view_flipped: flipped, view_mirrored: flipped };
+  const layoutRoom = { groups: room.groups, view_flipped: flipped, view_mirrored: mirrored };
   const { positions, boardRect, totalW, totalH } = computeLayout(layoutRoom, seatW, seatH);
   const titleH = 40;
   canvas.width = totalW; canvas.height = totalH + titleH;
@@ -1023,7 +1021,7 @@ async function drawSeatingChart(canvas, flipped, arrangementOverride, titleOverr
   }
 }
 async function openImagePreviewModal() {
-  let flipped = App.room.view_flipped, whiteBg = !!App.settings.exportWhiteBg;
+  let flipped = App.room.view_flipped, mirrored = App.room.view_mirrored, whiteBg = !!App.settings.exportWhiteBg;
   const modal = openModal(`
     <h2>${t('previewTitle')}</h2>
     <div class="row" style="margin-bottom:.6rem">
@@ -1073,10 +1071,10 @@ async function openImagePreviewModal() {
     canvas.style.width = Math.round(canvas.width * scale) + 'px';
     canvas.style.height = Math.round(canvas.height * scale) + 'px';
   };
-  const redraw = async () => { await drawSeatingChart(canvas, flipped, null, modal.querySelector('#pvTitle').value, whiteBg); fitCanvasToView(); };
+  const redraw = async () => { await drawSeatingChart(canvas, flipped, mirrored, null, modal.querySelector('#pvTitle').value, whiteBg); fitCanvasToView(); };
   await redraw();
   modal.querySelector('#pvTitle').oninput = redraw;
-  modal.querySelector('#pvFlip').onclick = async () => { flipped = !flipped; await redraw(); };
+  modal.querySelector('#pvFlip').onclick = async () => { flipped = !flipped; mirrored = !mirrored; await redraw(); };
   modal.querySelector('#pvWhiteBg').onchange = async e => {
     whiteBg = e.target.checked; App.settings.exportWhiteBg = whiteBg; Store.saveSettings(App.settings); await redraw();
   };
@@ -1090,7 +1088,7 @@ async function openImagePreviewModal() {
 async function openHistoryBrowserModal() {
   const sessions = App.data.sessions;
   if (!sessions.length) { alert(t('noHistory')); return; }
-  let idx = sessions.length - 1, flipped = App.room.view_flipped;
+  let idx = sessions.length - 1, flipped = App.room.view_flipped, mirrored = App.room.view_mirrored;
   const modal = openModal(`
     <h2>${t('historyBrowserTitle')}</h2>
     <div class="row" style="margin-bottom:.6rem; flex-wrap:wrap">
@@ -1112,13 +1110,13 @@ async function openHistoryBrowserModal() {
   const redraw = async () => {
     const sess = sessions[idx], when = new Date(sess.timestamp).toLocaleString();
     label.textContent = `${idx + 1}/${sessions.length} \u00b7 ${when}` + (sess.label ? ' \u2014 ' + sess.label : '');
-    await drawSeatingChart(canvas, flipped, sess.arrangement, label.textContent);
+    await drawSeatingChart(canvas, flipped, mirrored, sess.arrangement, label.textContent);
     prevBtn.disabled = idx === 0; nextBtn.disabled = idx === sessions.length - 1;
   };
   await redraw();
   prevBtn.onclick = async () => { if (idx > 0) { idx--; await redraw(); } };
   nextBtn.onclick = async () => { if (idx < sessions.length - 1) { idx++; await redraw(); } };
-  modal.querySelector('#hbFlip').onclick = async () => { flipped = !flipped; await redraw(); };
+  modal.querySelector('#hbFlip').onclick = async () => { flipped = !flipped; mirrored = !mirrored; await redraw(); };
   modal.querySelector('#hbDelete').onclick = async () => {
     if (!confirm(t('historyBrowserDeleteConfirm'))) return;
     sessions.splice(idx, 1);
