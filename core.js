@@ -282,23 +282,27 @@ function cleanStaleAbsences(cls) {
 function generateTeamGroups(cls, groupCount, genderMode = 'none') {
   const blSet = blacklistSet(cls), n = Math.max(1, groupCount);
   const eligible = cls.students.filter(s => !isAbsentToday(cls, s));
+  const gOf = s => cls.genders[s] === 'Jente' ? 'J' : cls.genders[s] === 'Gut' ? 'G' : '?';
+  const sizes = Array.from({ length: n }, (_, i) => Math.floor(eligible.length / n) + (i < eligible.length % n ? 1 : 0));
   let best = null, bestScore = Infinity;
   for (let attempt = 0; attempt < 300; attempt++) {
-    const shuffled = shuffle([...eligible]);
+    let order;
+    if (genderMode === 'none') order = shuffle([...eligible]);
+    else {
+      const buckets = shuffle(['J', 'G', '?']).map(k => shuffle(eligible.filter(s => gOf(s) === k)));
+      order = buckets.flat();
+    }
     const groups = Array.from({ length: n }, () => []);
-    shuffled.forEach((name, i) => groups[i % n].push(name));
+    if (genderMode === 'uneven') { // likt kjønn: fyll gruppe for gruppe i kjønnsrekkjefølgje
+      let p = 0; sizes.forEach((sz, gi) => { groups[gi] = order.slice(p, p + sz); p += sz; });
+    } else order.forEach((name, i) => groups[i % n].push(name)); // ulikt kjønn: del ut jamt
     let score = 0;
     for (const g of groups) for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++)
       if (blSet.has([g[i], g[j]].sort().join('||'))) score += 1000;
     if (genderMode !== 'none') {
       for (const g of groups) {
-        const girls = g.filter(s => cls.genders[s] === 'Jente').length;
-        const boys = g.filter(s => cls.genders[s] === 'Gut').length;
-        const total = girls + boys;
-        if (total > 0) {
-          const diff = Math.abs(girls - boys);
-          score += genderMode === 'even' ? diff : (total - diff);
-        }
+        const girls = g.filter(s => gOf(s) === 'J').length, boys = g.filter(s => gOf(s) === 'G').length;
+        score += genderMode === 'even' ? Math.abs(girls - boys) : Math.min(girls, boys);
       }
     }
     if (score < bestScore) { bestScore = score; best = groups; if (bestScore === 0) break; }
